@@ -26,6 +26,10 @@ def in_memory_session() -> Session:
 @pytest.fixture
 def sample_audit_logs(in_memory_session: Session) -> list[AuditLog]:
     """Create sample audit logs for testing."""
+    from datetime import datetime, timedelta
+
+    base_time = datetime.utcnow()
+
     logs = [
         AuditLog(
             user="user1",
@@ -33,6 +37,7 @@ def sample_audit_logs(in_memory_session: Session) -> list[AuditLog]:
             entity="trial",
             entity_id="123",
             payload_json=json.dumps({"name": "Trial A"}),
+            created_at=base_time,
         ),
         AuditLog(
             user="user2",
@@ -40,6 +45,7 @@ def sample_audit_logs(in_memory_session: Session) -> list[AuditLog]:
             entity="trial",
             entity_id="123",
             payload_json=json.dumps({"phase": "Phase II"}),
+            created_at=base_time + timedelta(seconds=1),
         ),
         AuditLog(
             user="user1",
@@ -47,6 +53,7 @@ def sample_audit_logs(in_memory_session: Session) -> list[AuditLog]:
             entity="trial",
             entity_id="123",
             payload_json=json.dumps({"site_id": 456}),
+            created_at=base_time + timedelta(seconds=2),
         ),
         # Different entity
         AuditLog(
@@ -55,6 +62,7 @@ def sample_audit_logs(in_memory_session: Session) -> list[AuditLog]:
             entity="trial",
             entity_id="456",
             payload_json=json.dumps({"name": "Trial B"}),
+            created_at=base_time + timedelta(seconds=3),
         ),
         # Different entity type
         AuditLog(
@@ -63,6 +71,7 @@ def sample_audit_logs(in_memory_session: Session) -> list[AuditLog]:
             entity="site",
             entity_id="789",
             payload_json=json.dumps({"name": "Site X"}),
+            created_at=base_time + timedelta(seconds=4),
         ),
     ]
     in_memory_session.add_all(logs)

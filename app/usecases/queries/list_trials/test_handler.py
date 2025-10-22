@@ -24,12 +24,41 @@ def in_memory_session() -> Session:
 @pytest.fixture
 def sample_trials(in_memory_session: Session) -> list[Trial]:
     """Create sample trials for testing."""
+    from datetime import datetime, timedelta
+
+    base_time = datetime.utcnow()
+
     trials = [
-        Trial(name="Alpha Trial", phase="Phase I", status="active"),
-        Trial(name="Beta Trial", phase="Phase II", status="active"),
-        Trial(name="Gamma Trial", phase="Phase III", status="draft"),
-        Trial(name="Delta Trial", phase="Phase I", status="completed"),
-        Trial(name="Epsilon Trial", phase="Phase II", status="paused"),
+        Trial(
+            name="Alpha Trial",
+            phase="Phase I",
+            status="active",
+            created_at=base_time,
+        ),
+        Trial(
+            name="Beta Trial",
+            phase="Phase II",
+            status="active",
+            created_at=base_time + timedelta(seconds=1),
+        ),
+        Trial(
+            name="Gamma Trial",
+            phase="Phase III",
+            status="draft",
+            created_at=base_time + timedelta(seconds=2),
+        ),
+        Trial(
+            name="Delta Trial",
+            phase="Phase I",
+            status="completed",
+            created_at=base_time + timedelta(seconds=3),
+        ),
+        Trial(
+            name="Epsilon Trial",
+            phase="Phase II",
+            status="paused",
+            created_at=base_time + timedelta(seconds=4),
+        ),
     ]
     in_memory_session.add_all(trials)
     in_memory_session.flush()
