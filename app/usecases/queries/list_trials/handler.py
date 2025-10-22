@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 from app.infrastructure.database.models import Trial, TrialSite
 from app.usecases.queries.list_trials.types import (
     ListTrialsInput,
-    ListTrialsOutput,
+    TrialsResponse,
     TrialSummary,
 )
 
 
-def list_trials_handler(session: Session, input_data: ListTrialsInput) -> ListTrialsOutput:
+def list_trials_handler(session: Session, input_data: ListTrialsInput) -> TrialsResponse:
     """
     List trials with filtering and pagination.
 
@@ -69,4 +69,4 @@ def list_trials_handler(session: Session, input_data: ListTrialsInput) -> ListTr
             )
         )
 
-    return ListTrialsOutput(items=summaries, total=total)
+    return TrialsResponse(items=summaries, total=total)

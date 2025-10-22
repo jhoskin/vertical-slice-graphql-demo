@@ -16,8 +16,8 @@ class RegisterSiteToTrialInput:
 
 @strawberry.type
 @dataclass
-class RegisterSiteToTrialOutput:
-    """Output from registering a site to a trial."""
+class RegisterSiteToTrialResponse:
+    """Response from registering a site to a trial."""
     trial_id: int
     site_id: int
     site_name: str

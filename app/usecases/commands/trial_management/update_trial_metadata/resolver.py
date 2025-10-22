@@ -9,12 +9,12 @@ from app.usecases.commands.trial_management.update_trial_metadata.handler import
 )
 from app.usecases.commands.trial_management.update_trial_metadata.types import (
     UpdateTrialMetadataInput,
-    UpdateTrialMetadataOutput,
+    UpdateTrialMetadataResponse,
 )
 
 
 @strawberry.mutation
-def update_trial_metadata(input: UpdateTrialMetadataInput) -> UpdateTrialMetadataOutput:
+def update_trial_metadata(input: UpdateTrialMetadataInput) -> UpdateTrialMetadataResponse:
     """
     GraphQL mutation to update trial metadata.
 

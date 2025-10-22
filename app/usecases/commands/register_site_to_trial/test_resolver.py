@@ -14,7 +14,7 @@ def test_register_site_to_trial_resolver_exists() -> None:
     assert hasattr(resolver, "session_scope")
     assert hasattr(resolver, "register_site_to_trial_handler")
     assert hasattr(resolver, "RegisterSiteToTrialInput")
-    assert hasattr(resolver, "RegisterSiteToTrialOutput")
+    assert hasattr(resolver, "RegisterSiteToTrialResponse")
 
 
 # Note: The actual business logic is thoroughly tested in test_handler.py

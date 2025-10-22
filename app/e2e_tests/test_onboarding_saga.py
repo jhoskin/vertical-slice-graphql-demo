@@ -69,7 +69,7 @@ def test_onboarding_saga_happy_path(graphql_client):
     # Verify trial was created with sites
     trial_query = """
         query GetTrial($id: Int!) {
-            trialById(id: $id) {
+            trial(id: $id) {
                 id
                 name
                 phase
@@ -85,7 +85,7 @@ def test_onboarding_saga_happy_path(graphql_client):
     trial_result = graphql_client(trial_query, {"id": trial_id})
     assert "errors" not in trial_result, f"GraphQL errors: {trial_result.get('errors')}"
 
-    trial_data = trial_result["data"]["trialById"]
+    trial_data = trial_result["data"]["trial"]
     assert trial_data["name"] == "Onboarded Trial"
     assert trial_data["phase"] == "Phase II"
     assert trial_data["status"] == "draft"
@@ -206,7 +206,7 @@ def test_onboarding_with_no_sites(graphql_client):
     # Verify trial exists with no sites
     trial_query = """
         query GetTrial($id: Int!) {
-            trialById(id: $id) {
+            trial(id: $id) {
                 name
                 sites {
                     id
@@ -220,7 +220,7 @@ def test_onboarding_with_no_sites(graphql_client):
         {"id": saga_data["trialId"]}
     )
 
-    trial_data = trial_result["data"]["trialById"]
+    trial_data = trial_result["data"]["trial"]
     assert trial_data["name"] == "Trial Without Sites"
     assert len(trial_data["sites"]) == 0
 

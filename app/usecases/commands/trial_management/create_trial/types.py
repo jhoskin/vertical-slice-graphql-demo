@@ -16,8 +16,8 @@ class CreateTrialInput:
 
 @strawberry.type
 @dataclass
-class CreateTrialOutput:
-    """Output from creating a trial."""
+class CreateTrialResponse:
+    """Response from creating a trial."""
     id: int
     name: str
     phase: str

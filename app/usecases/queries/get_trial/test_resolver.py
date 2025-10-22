@@ -8,7 +8,7 @@ def test_trial_by_id_resolver_exists() -> None:
     from app.usecases.queries.get_trial import resolver
 
     # Verify the resolver function exists and is a Strawberry field
-    assert hasattr(resolver, "trial_by_id")
+    assert hasattr(resolver, "trial")
 
     # Verify imports work
     assert hasattr(resolver, "session_scope")

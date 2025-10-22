@@ -11,7 +11,7 @@ from app.usecases.commands.trial_management._validation import (
 )
 from app.usecases.commands.trial_management.update_trial_metadata.types import (
     UpdateTrialMetadataInput,
-    UpdateTrialMetadataOutput,
+    UpdateTrialMetadataResponse,
 )
 
 
@@ -23,7 +23,7 @@ class TrialNotFoundError(Exception):
 @audited(action="update_trial_metadata", entity="trial", entity_id_fn=lambda r: str(r.id))
 def update_trial_metadata_handler(
     session: Session, input_data: UpdateTrialMetadataInput
-) -> UpdateTrialMetadataOutput:
+) -> UpdateTrialMetadataResponse:
     """
     Update trial metadata (name and/or phase).
 
@@ -69,7 +69,7 @@ def update_trial_metadata_handler(
     # Format changes summary
     changes_summary = "; ".join(changes) if changes else "no changes"
 
-    return UpdateTrialMetadataOutput(
+    return UpdateTrialMetadataResponse(
         id=trial.id,
         name=trial.name,
         phase=trial.phase,

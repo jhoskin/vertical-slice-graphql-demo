@@ -8,12 +8,12 @@ from app.infrastructure.database.models import Trial
 from app.usecases.commands.trial_management._validation import validate_phase
 from app.usecases.commands.trial_management.create_trial.types import (
     CreateTrialInput,
-    CreateTrialOutput,
+    CreateTrialResponse,
 )
 
 
 @audited(action="create_trial", entity="trial", entity_id_fn=lambda r: str(r.id))
-def create_trial_handler(session: Session, input_data: CreateTrialInput) -> CreateTrialOutput:
+def create_trial_handler(session: Session, input_data: CreateTrialInput) -> CreateTrialResponse:
     """
     Create a new trial.
 
@@ -40,7 +40,7 @@ def create_trial_handler(session: Session, input_data: CreateTrialInput) -> Crea
     session.add(trial)
     session.flush()  # Get ID without committing
 
-    return CreateTrialOutput(
+    return CreateTrialResponse(
         id=trial.id,
         name=trial.name,
         phase=trial.phase,

@@ -10,13 +10,13 @@ from app.usecases.workflows.onboard_trial.handler import (
 )
 from app.usecases.workflows.onboard_trial.types import (
     OnboardTrialInput,
-    OnboardTrialOutput,
-    OnboardingStatusOutput,
+    OnboardTrialResponse,
+    OnboardingStatusResponse,
 )
 
 
 @strawberry.mutation
-def start_onboarding(input: OnboardTrialInput) -> OnboardTrialOutput:
+def start_onboarding(input: OnboardTrialInput) -> OnboardTrialResponse:
     """
     GraphQL mutation to start trial onboarding workflow.
 
@@ -31,7 +31,7 @@ def start_onboarding(input: OnboardTrialInput) -> OnboardTrialOutput:
 
 
 @strawberry.field
-def onboarding_status(saga_id: int) -> OnboardingStatusOutput:
+def onboarding_status(saga_id: int) -> OnboardingStatusResponse:
     """
     GraphQL query to check onboarding workflow status.
 

@@ -9,12 +9,12 @@ from app.usecases.commands.register_site_to_trial.handler import (
 )
 from app.usecases.commands.register_site_to_trial.types import (
     RegisterSiteToTrialInput,
-    RegisterSiteToTrialOutput,
+    RegisterSiteToTrialResponse,
 )
 
 
 @strawberry.mutation
-def register_site_to_trial(input: RegisterSiteToTrialInput) -> RegisterSiteToTrialOutput:
+def register_site_to_trial(input: RegisterSiteToTrialInput) -> RegisterSiteToTrialResponse:
     """
     GraphQL mutation to register a site to a trial.
 

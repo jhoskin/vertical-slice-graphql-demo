@@ -37,7 +37,7 @@ def test_create_get_update_trial_lifecycle(graphql_client):
     # Step 2: Get the trial by ID
     get_query = """
         query GetTrial($id: Int!) {
-            trialById(id: $id) {
+            trial(id: $id) {
                 id
                 name
                 phase
@@ -57,11 +57,11 @@ def test_create_get_update_trial_lifecycle(graphql_client):
 
     get_result = graphql_client(get_query, get_variables)
     assert "errors" not in get_result, f"GraphQL errors: {get_result.get('errors')}"
-    assert get_result["data"]["trialById"]["id"] == trial_id
-    assert get_result["data"]["trialById"]["name"] == "E2E Test Trial"
-    assert get_result["data"]["trialById"]["phase"] == "Phase I"
-    assert get_result["data"]["trialById"]["status"] == "draft"
-    assert get_result["data"]["trialById"]["sites"] == []
+    assert get_result["data"]["trial"]["id"] == trial_id
+    assert get_result["data"]["trial"]["name"] == "E2E Test Trial"
+    assert get_result["data"]["trial"]["phase"] == "Phase I"
+    assert get_result["data"]["trial"]["status"] == "draft"
+    assert get_result["data"]["trial"]["sites"] == []
 
     # Step 3: Update trial metadata
     update_mutation = """
@@ -98,8 +98,8 @@ def test_create_get_update_trial_lifecycle(graphql_client):
     # Step 4: Verify updated data persists
     final_get_result = graphql_client(get_query, get_variables)
     assert "errors" not in final_get_result, f"GraphQL errors: {final_get_result.get('errors')}"
-    assert final_get_result["data"]["trialById"]["phase"] == "Phase II"
-    assert final_get_result["data"]["trialById"]["name"] == "Updated Trial Name"
+    assert final_get_result["data"]["trial"]["phase"] == "Phase II"
+    assert final_get_result["data"]["trial"]["name"] == "Updated Trial Name"
 
 
 def test_list_trials_pagination(graphql_client):
@@ -126,7 +126,7 @@ def test_list_trials_pagination(graphql_client):
     # List trials with pagination
     list_query = """
         query ListTrials($input: ListTrialsInput!) {
-            listTrials(input: $input) {
+            trials(input: $input) {
                 items {
                     id
                     name
@@ -141,14 +141,14 @@ def test_list_trials_pagination(graphql_client):
     # Get first page
     result1 = graphql_client(list_query, {"input": {"limit": 3, "offset": 0}})
     assert "errors" not in result1, f"GraphQL errors: {result1.get('errors')}"
-    assert len(result1["data"]["listTrials"]["items"]) == 3
-    assert result1["data"]["listTrials"]["total"] == 5
+    assert len(result1["data"]["trials"]["items"]) == 3
+    assert result1["data"]["trials"]["total"] == 5
 
     # Get second page
     result2 = graphql_client(list_query, {"input": {"limit": 3, "offset": 3}})
     assert "errors" not in result2, f"GraphQL errors: {result2.get('errors')}"
-    assert len(result2["data"]["listTrials"]["items"]) == 2
-    assert result2["data"]["listTrials"]["total"] == 5
+    assert len(result2["data"]["trials"]["items"]) == 2
+    assert result2["data"]["trials"]["total"] == 5
 
 
 def test_invalid_phase_transition(graphql_client):

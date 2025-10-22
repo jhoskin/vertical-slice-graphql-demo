@@ -32,7 +32,7 @@ class TrialSummary:
 
 @strawberry.type
 @dataclass
-class ListTrialsOutput:
+class TrialsResponse:
     """Paginated list of trials."""
     items: list[TrialSummary]
     total: int  # Total count for pagination

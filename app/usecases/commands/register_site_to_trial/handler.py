@@ -10,7 +10,7 @@ from app.core.audit import audited
 from app.infrastructure.database.models import Site, Trial, TrialSite
 from app.usecases.commands.register_site_to_trial.types import (
     RegisterSiteToTrialInput,
-    RegisterSiteToTrialOutput,
+    RegisterSiteToTrialResponse,
 )
 
 
@@ -31,7 +31,7 @@ class DuplicateSiteLinkError(Exception):
 )
 def register_site_to_trial_handler(
     session: Session, input_data: RegisterSiteToTrialInput
-) -> RegisterSiteToTrialOutput:
+) -> RegisterSiteToTrialResponse:
     """
     Register a site to a trial.
 
@@ -85,7 +85,7 @@ def register_site_to_trial_handler(
             f"Site {site_id} is already linked to trial {trial_id}"
         )
 
-    return RegisterSiteToTrialOutput(
+    return RegisterSiteToTrialResponse(
         trial_id=trial_id,
         site_id=site_id,
         site_name=input_data.site_name,

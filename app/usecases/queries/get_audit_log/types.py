@@ -31,6 +31,6 @@ class AuditEntry:
 
 @strawberry.type
 @dataclass
-class GetAuditLogOutput:
+class AuditLogResponse:
     """List of audit log entries."""
     entries: list[AuditEntry]

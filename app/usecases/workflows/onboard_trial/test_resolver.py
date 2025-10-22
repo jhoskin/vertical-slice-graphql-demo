@@ -16,8 +16,8 @@ def test_start_onboarding_resolver_exists() -> None:
     assert hasattr(resolver, "onboard_trial_handler")
     assert hasattr(resolver, "get_onboarding_status_handler")
     assert hasattr(resolver, "OnboardTrialInput")
-    assert hasattr(resolver, "OnboardTrialOutput")
-    assert hasattr(resolver, "OnboardingStatusOutput")
+    assert hasattr(resolver, "OnboardTrialResponse")
+    assert hasattr(resolver, "OnboardingStatusResponse")
 
 
 # Note: The actual business logic is thoroughly tested in test_handler.py

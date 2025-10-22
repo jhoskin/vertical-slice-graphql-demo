@@ -14,7 +14,7 @@ def test_create_trial_resolver_exists() -> None:
     assert hasattr(resolver, "session_scope")
     assert hasattr(resolver, "create_trial_handler")
     assert hasattr(resolver, "CreateTrialInput")
-    assert hasattr(resolver, "CreateTrialOutput")
+    assert hasattr(resolver, "CreateTrialResponse")
 
 
 # Note: The actual business logic is thoroughly tested in test_handler.py

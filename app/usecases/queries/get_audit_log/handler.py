@@ -7,13 +7,13 @@ from app.infrastructure.database.models import AuditLog
 from app.usecases.queries.get_audit_log.types import (
     AuditEntry,
     GetAuditLogInput,
-    GetAuditLogOutput,
+    AuditLogResponse,
 )
 
 
 def get_audit_log_handler(
     session: Session, input_data: GetAuditLogInput
-) -> GetAuditLogOutput:
+) -> AuditLogResponse:
     """
     Get audit log entries for a specific entity.
 
@@ -50,4 +50,4 @@ def get_audit_log_handler(
         for log in logs
     ]
 
-    return GetAuditLogOutput(entries=entries)
+    return AuditLogResponse(entries=entries)

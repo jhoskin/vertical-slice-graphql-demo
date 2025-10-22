@@ -120,13 +120,41 @@ app/
 - **Infrastructure separation**: Database and API concerns isolated from business logic
 - **E2E tests clearly separated**: Integration tests in dedicated `e2e_tests/` folder
 
+## GraphQL Schema Design (Apollo Best Practices)
+
+This schema follows [Apollo's naming conventions](https://www.apollographql.com/docs/graphos/schema-design/guides/naming-conventions):
+
+### Casing Standards
+- **Field names**: `camelCase` (queries, mutations, arguments)
+- **Types**: `PascalCase` (objects, inputs, enums, interfaces)
+- **Enum values**: `SCREAMING_SNAKE_CASE`
+
+### Query Naming
+- ❌ Avoid verb prefixes: `getProducts`, `listTrials`
+- ✅ Use noun-based names: `products`, `trials`
+- Examples: `trial(id: Int!)`, `trials(input: TrialsInput!)`
+
+### Mutation Naming
+- ✅ Begin with action verbs: `createTrial`, `updateTrialMetadata`
+- Follow pattern: `{verb}{Noun}`
+
+### Type Naming
+- **Input types**: Use `Input` suffix (e.g., `CreateTrialInput`)
+- **Response types**: Use `Response` suffix (e.g., `CreateTrialResponse`)
+- **Domain types**: Use descriptive names without suffixes (e.g., `TrialDetail`, `SiteInfo`)
+
+### Our Schema Conventions
+- One resolver per use case (high cohesion)
+- Explicit input/response types per operation (no entity leakage)
+- Consistent verb usage: `create`, `update`, `register`, `start`
+
 ## GraphQL Design
 - **One resolver per use case.** Commands as mutations. Queries as queries.
 - Inputs: Strawberry `@input` mapped from each slice's DTO.
 - Outputs: explicit per-slice types. Avoid leaking raw entities.
 - Naming:
   - Mutations: `createTrial`, `registerSiteToTrial`, `updateTrialMetadata`, `startOnboarding`
-  - Queries: `trialById`, `listTrials`, `auditLog`, `onboardingStatus`
+  - Queries: `trial`, `trials`, `auditLog`, `onboardingStatus`
 - Composition example:
 ```python
 # app/infrastructure/api/schema.py
@@ -134,8 +162,8 @@ import strawberry
 from app.usecases.commands.trial_management.create_trial.resolver import create_trial
 from app.usecases.commands.register_site_to_trial.resolver import register_site_to_trial
 from app.usecases.commands.trial_management.update_trial_metadata.resolver import update_trial_metadata
-from app.usecases.queries.get_trial.resolver import trial_by_id
-from app.usecases.queries.list_trials.resolver import list_trials
+from app.usecases.queries.get_trial.resolver import trial
+from app.usecases.queries.list_trials.resolver import trials
 from app.usecases.queries.get_audit_log.resolver import audit_log
 from app.usecases.workflows.onboard_trial.resolver import start_onboarding, onboarding_status
 
@@ -148,12 +176,111 @@ class Mutation:
 
 @strawberry.type
 class Query:
-    trial_by_id = trial_by_id
-    list_trials = list_trials
+    trial = trial
+    trials = trials
     audit_log = audit_log
     onboarding_status = onboarding_status
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)
+```
+
+## Example GraphQL Queries
+
+### Query a single trial
+```graphql
+query GetTrial($id: Int!) {
+  trial(id: $id) {
+    id
+    name
+    phase
+    status
+    sites {
+      name
+      country
+      linkStatus
+    }
+    latestProtocol {
+      version
+      notes
+    }
+  }
+}
+```
+
+### List trials with filters
+```graphql
+query ListTrials($input: ListTrialsInput!) {
+  trials(input: $input) {
+    total
+    items {
+      id
+      name
+      phase
+      status
+      siteCount
+      createdAt
+    }
+  }
+}
+```
+
+Variables:
+```json
+{
+  "input": {
+    "phase": "Phase II",
+    "limit": 10,
+    "offset": 0
+  }
+}
+```
+
+### Create a trial
+```graphql
+mutation CreateTrial($input: CreateTrialInput!) {
+  createTrial(input: $input) {
+    id
+    name
+    phase
+    status
+    createdAt
+  }
+}
+```
+
+Variables:
+```json
+{
+  "input": {
+    "name": "New Trial",
+    "phase": "Phase I"
+  }
+}
+```
+
+### Register a site to a trial
+```graphql
+mutation RegisterSite($input: RegisterSiteToTrialInput!) {
+  registerSiteToTrial(input: $input) {
+    siteId
+    siteName
+    country
+    trialId
+    linkStatus
+  }
+}
+```
+
+### Start trial onboarding workflow
+```graphql
+mutation StartOnboarding($input: OnboardTrialInput!) {
+  startOnboarding(input: $input) {
+    sagaId
+    trialId
+    state
+    message
+  }
+}
 ```
 
 ## Cross-Cutting

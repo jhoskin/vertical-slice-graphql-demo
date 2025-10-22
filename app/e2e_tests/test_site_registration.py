@@ -56,7 +56,7 @@ def test_register_site_to_trial(graphql_client):
     # Verify the site appears in trial details
     get_trial_query = """
         query GetTrial($id: Int!) {
-            trialById(id: $id) {
+            trial(id: $id) {
                 id
                 name
                 sites {
@@ -71,7 +71,7 @@ def test_register_site_to_trial(graphql_client):
 
     trial_details = graphql_client(get_trial_query, {"id": trial_id})
     assert "errors" not in trial_details, f"GraphQL errors: {trial_details.get('errors')}"
-    sites = trial_details["data"]["trialById"]["sites"]
+    sites = trial_details["data"]["trial"]["sites"]
     assert len(sites) == 1
     assert sites[0]["id"] == site_id
     assert sites[0]["name"] == "Mayo Clinic"
@@ -129,7 +129,7 @@ def test_register_existing_site_to_new_trial(graphql_client):
     # Verify both trials show the site
     get_trial_query = """
         query GetTrial($id: Int!) {
-            trialById(id: $id) {
+            trial(id: $id) {
                 sites {
                     id
                     name
@@ -141,10 +141,10 @@ def test_register_existing_site_to_new_trial(graphql_client):
     trial1_sites = graphql_client(get_trial_query, {"id": trial1_id})
     trial2_sites = graphql_client(get_trial_query, {"id": trial2_id})
 
-    assert len(trial1_sites["data"]["trialById"]["sites"]) == 1
-    assert len(trial2_sites["data"]["trialById"]["sites"]) == 1
-    assert trial1_sites["data"]["trialById"]["sites"][0]["id"] == site_id
-    assert trial2_sites["data"]["trialById"]["sites"][0]["id"] == site_id
+    assert len(trial1_sites["data"]["trial"]["sites"]) == 1
+    assert len(trial2_sites["data"]["trial"]["sites"]) == 1
+    assert trial1_sites["data"]["trial"]["sites"][0]["id"] == site_id
+    assert trial2_sites["data"]["trial"]["sites"][0]["id"] == site_id
 
 
 def test_duplicate_site_registration_fails(graphql_client):

@@ -17,8 +17,8 @@ from app.usecases.commands.trial_management.update_trial_metadata.resolver impor
 
 # Import query resolvers
 from app.usecases.queries.get_audit_log.resolver import audit_log
-from app.usecases.queries.get_trial.resolver import trial_by_id
-from app.usecases.queries.list_trials.resolver import list_trials
+from app.usecases.queries.get_trial.resolver import trial
+from app.usecases.queries.list_trials.resolver import trials
 
 # Import workflow resolvers
 from app.usecases.workflows.onboard_trial.resolver import (
@@ -41,8 +41,8 @@ class Mutation:
 class Query:
     """Root query type - one resolver per query."""
 
-    trial_by_id = trial_by_id
-    list_trials = list_trials
+    trial = trial
+    trials = trials
     audit_log = audit_log
     onboarding_status = onboarding_status
 

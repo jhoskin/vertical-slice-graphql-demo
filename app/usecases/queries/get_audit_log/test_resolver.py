@@ -14,7 +14,7 @@ def test_audit_log_resolver_exists() -> None:
     assert hasattr(resolver, "session_scope")
     assert hasattr(resolver, "get_audit_log_handler")
     assert hasattr(resolver, "GetAuditLogInput")
-    assert hasattr(resolver, "GetAuditLogOutput")
+    assert hasattr(resolver, "AuditLogResponse")
 
 
 # Note: The actual business logic is thoroughly tested in test_handler.py

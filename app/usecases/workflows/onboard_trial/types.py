@@ -26,8 +26,8 @@ class OnboardTrialInput:
 
 @strawberry.type
 @dataclass
-class OnboardTrialOutput:
-    """Output from starting trial onboarding."""
+class OnboardTrialResponse:
+    """Response from starting trial onboarding."""
     saga_id: int
     trial_id: Optional[int]
     state: str
@@ -36,7 +36,7 @@ class OnboardTrialOutput:
 
 @strawberry.type
 @dataclass
-class OnboardingStatusOutput:
+class OnboardingStatusResponse:
     """Status of an onboarding workflow."""
     saga_id: int
     trial_id: Optional[int]

@@ -7,12 +7,12 @@ from app.infrastructure.database.session import session_scope
 from app.usecases.queries.list_trials.handler import list_trials_handler
 from app.usecases.queries.list_trials.types import (
     ListTrialsInput,
-    ListTrialsOutput,
+    TrialsResponse,
 )
 
 
 @strawberry.field
-def list_trials(input: ListTrialsInput = ListTrialsInput()) -> ListTrialsOutput:
+def trials(input: ListTrialsInput = ListTrialsInput()) -> TrialsResponse:
     """
     GraphQL query to list trials with filtering and pagination.
 

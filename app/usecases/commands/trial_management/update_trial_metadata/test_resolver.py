@@ -14,7 +14,7 @@ def test_update_trial_metadata_resolver_exists() -> None:
     assert hasattr(resolver, "session_scope")
     assert hasattr(resolver, "update_trial_metadata_handler")
     assert hasattr(resolver, "UpdateTrialMetadataInput")
-    assert hasattr(resolver, "UpdateTrialMetadataOutput")
+    assert hasattr(resolver, "UpdateTrialMetadataResponse")
 
 
 # Note: The actual business logic is thoroughly tested in test_handler.py

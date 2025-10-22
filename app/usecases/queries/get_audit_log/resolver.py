@@ -7,12 +7,12 @@ from app.infrastructure.database.session import session_scope
 from app.usecases.queries.get_audit_log.handler import get_audit_log_handler
 from app.usecases.queries.get_audit_log.types import (
     GetAuditLogInput,
-    GetAuditLogOutput,
+    AuditLogResponse,
 )
 
 
 @strawberry.field
-def audit_log(input: GetAuditLogInput) -> GetAuditLogOutput:
+def audit_log(input: GetAuditLogInput) -> AuditLogResponse:
     """
     GraphQL query to get audit log entries for an entity.
 

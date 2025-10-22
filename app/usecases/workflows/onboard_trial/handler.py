@@ -15,8 +15,8 @@ from app.usecases.commands.trial_management.create_trial.handler import (
 from app.usecases.commands.trial_management.create_trial.types import CreateTrialInput
 from app.usecases.workflows.onboard_trial.types import (
     OnboardTrialInput,
-    OnboardTrialOutput,
-    OnboardingStatusOutput,
+    OnboardTrialResponse,
+    OnboardingStatusResponse,
 )
 
 
@@ -32,7 +32,7 @@ class SagaNotFoundError(Exception):
 )
 def onboard_trial_handler(
     session: Session, input_data: OnboardTrialInput
-) -> OnboardTrialOutput:
+) -> OnboardTrialResponse:
     """
     Orchestrate trial onboarding workflow.
 
@@ -90,7 +90,7 @@ def onboard_trial_handler(
         saga.state = "COMPLETED"
         session.flush()
 
-        return OnboardTrialOutput(
+        return OnboardTrialResponse(
             saga_id=saga.id,
             trial_id=trial_output.id,
             state="COMPLETED",
@@ -103,7 +103,7 @@ def onboard_trial_handler(
         saga.error = str(e)
         session.flush()
 
-        return OnboardTrialOutput(
+        return OnboardTrialResponse(
             saga_id=saga.id,
             trial_id=saga.trial_id,
             state="ERROR",
@@ -113,7 +113,7 @@ def onboard_trial_handler(
 
 def get_onboarding_status_handler(
     session: Session, saga_id: int
-) -> OnboardingStatusOutput:
+) -> OnboardingStatusResponse:
     """
     Get status of an onboarding workflow.
 
@@ -132,7 +132,7 @@ def get_onboarding_status_handler(
     if not saga:
         raise SagaNotFoundError(f"Saga with id {saga_id} not found")
 
-    return OnboardingStatusOutput(
+    return OnboardingStatusResponse(
         saga_id=saga.id,
         trial_id=saga.trial_id,
         state=saga.state,

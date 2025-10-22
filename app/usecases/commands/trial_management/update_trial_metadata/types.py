@@ -18,8 +18,8 @@ class UpdateTrialMetadataInput:
 
 @strawberry.type
 @dataclass
-class UpdateTrialMetadataOutput:
-    """Output from updating trial metadata."""
+class UpdateTrialMetadataResponse:
+    """Response from updating trial metadata."""
     id: int
     name: str
     phase: str
