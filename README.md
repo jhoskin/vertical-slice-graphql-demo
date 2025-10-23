@@ -350,12 +350,52 @@ subscription WorkflowProgress($workflowId: String!) {
 - **DB**: `app/infrastructure/database/session.py` exposes `SessionLocal()` context helper. Each handler opens and commits its own transaction.
 
 ## Tests
-- **Unit tests**: Co-located with each slice (e.g., `test_handler.py`, `test_resolver.py`). Use in-memory SQLite. Verify success, rollback, and audit row creation.
-- **End-to-end tests**: Located in `app/e2e_tests/`. ASGI client against the Strawberry app.
-  - Create → Get → Update roundtrip
-  - Register site transaction
-  - Onboard saga happy path and failure path
-  - Audit trail verification
+
+### Unit Tests
+- **Location**: Co-located with each slice (e.g., `test_handler.py`, `test_resolver.py`)
+- **Scope**: Test individual components in isolation
+- **Database**: In-memory SQLite
+- **Coverage**: Success paths, error handling, rollback, audit logging
+
+### Integration Tests
+- **Location**: `app/e2e_tests/test_async_workflow_integration.py`
+- **Scope**: Test component interactions with mocked external dependencies
+- **Examples**: Webhook → pub/sub → subscription flow (with mocked Restate)
+
+### End-to-End Tests
+- **Location**: `app/e2e_tests/`
+- **Scope**: Full system tests through GraphQL API
+- **Files**:
+  - `test_trial_lifecycle.py` - Create → Get → Update roundtrip
+  - `test_site_registration.py` - Site registration transactions
+  - `test_sync_saga_workflow.py` - Synchronous saga with compensation
+  - `test_audit_trail.py` - Audit trail verification
+  - `test_async_workflow_e2e.py` - **Requires Restate running** (marked with `@pytest.mark.restate_e2e`)
+
+### Running Tests
+
+```bash
+# Run all tests except Restate E2E (default)
+pytest
+
+# Or explicitly exclude Restate E2E tests
+pytest -m "not restate_e2e"
+
+# Run only Restate E2E tests (requires docker-compose up)
+pytest -m restate_e2e
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest app/e2e_tests/test_sync_saga_workflow.py
+```
+
+**Note on Restate E2E Tests:**
+- Require Restate runtime running via `docker-compose up`
+- Test actual workflow execution through Restate
+- Verify webhook callbacks and database state
+- Automatically skipped if Restate is not running
 
 ## Seed Data
 - 3 trials across phases.

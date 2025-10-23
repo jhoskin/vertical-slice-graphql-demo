@@ -17,3 +17,8 @@ dependencies = [
     "strawberry-graphql>=0.211",
     "uvicorn>=0.30",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "restate_e2e: marks tests as requiring Restate runtime (deselect with '-m \"not restate_e2e\"')",
+]
