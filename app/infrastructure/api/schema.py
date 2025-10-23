@@ -21,20 +21,24 @@ from app.usecases.queries.get_trial.resolver import trial
 from app.usecases.queries.list_trials.resolver import trials
 
 # Import workflow resolvers
-from app.usecases.workflows.onboard_trial.resolver import (
-    onboarding_status,
-    start_onboarding,
+from app.usecases.workflows.onboard_trial_async.resolver import (
+    start_onboard_trial_async,
+    workflow_progress,
 )
+from app.usecases.workflows.onboard_trial_sync.resolver import onboard_trial_sync
 
 
 @strawberry.type
 class Mutation:
-    """Root mutation type - one resolver per command/workflow."""
+    """Root mutation type - one resolver per command."""
 
     create_trial = create_trial
     register_site_to_trial = register_site_to_trial
     update_trial_metadata = update_trial_metadata
-    start_onboarding = start_onboarding
+
+    # Workflow mutations
+    onboard_trial_sync = onboard_trial_sync
+    start_onboard_trial_async = start_onboard_trial_async
 
 
 @strawberry.type
@@ -44,7 +48,6 @@ class Query:
     trial = trial
     trials = trials
     audit_log = audit_log
-    onboarding_status = onboarding_status
 
     @strawberry.field
     def health(self) -> str:
@@ -52,5 +55,12 @@ class Query:
         return "ok"
 
 
+@strawberry.type
+class Subscription:
+    """Root subscription type - real-time updates."""
+
+    workflow_progress = workflow_progress
+
+
 # Build the schema
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+schema = strawberry.Schema(query=Query, mutation=Mutation, subscription=Subscription)

@@ -23,7 +23,6 @@ Demonstrate vertical slice architecture in Python with **Command–Query Separat
 - `trial_sites(trial_id, site_id, status, UNIQUE(trial_id, site_id))`
 - `protocol_versions(id, trial_id, version, notes, created_at)`
 - `audit_logs(id, user, action, entity, entity_id, payload_json, created_at)`
-- `saga_onboard_trial(id, trial_id NULL, state, error NULL, created_at, updated_at)`
 
 ## Use Cases
 
@@ -56,12 +55,25 @@ Demonstrate vertical slice architecture in Python with **Command–Query Separat
 - In: `{ entity, entity_id, limit=50 }`
 - Out: `[AuditEntry]`
 
-### Workflow (Saga)
-7) **onboard_trial**
+### Workflows
+Two workflow patterns demonstrating different orchestration approaches:
+
+7) **onboard_trial_sync** (Synchronous Saga)
 - In: `{ name, phase, initial_protocol_version, sites: [{name, country}] }`
-- Steps: create trial → add protocol version → register sites sequentially.
-- State: `STARTED → SITES_ADDED → COMPLETED | ERROR` (stored in `saga_onboard_trial`).
-- Writes audits at each step. No event sourcing. Simple in-process orchestration.
+- Pattern: Fast-running, in-memory saga with compensation pattern
+- Behavior: Blocks GraphQL request until complete. On failure, compensates (rolls back) all previous steps.
+- Steps: create trial → add protocol → register sites sequentially
+- No state persistence - pure in-memory compensation stack
+- Returns: `{ success, trial_id, message, steps_completed }`
+
+8) **start_onboard_trial_async** (Async Restate Workflow)
+- In: `{ name, phase, initial_protocol_version, sites: [{name, country}] }`
+- Pattern: Durable async workflow with GraphQL subscriptions for progress
+- Behavior: Returns immediately with workflow ID. Execution happens durably via Restate.
+- Progress: Subscribe via `workflowProgress(workflow_id)` for real-time updates
+- Steps: create trial → add protocol → register sites (with synthetic delays for observation)
+- Durable execution: Workflow state journaled by Restate, survives restarts
+- Returns immediately: `{ workflow_id, message }`
 
 ## Folder Structure
 ```
@@ -105,13 +117,27 @@ app/
 │   │   ├── list_trials/
 │   │   └── get_audit_log/
 │   └── workflows/
-│       └── onboard_trial/
+│       ├── onboard_trial_sync/      # Synchronous saga workflow
+│       │   ├── handler.py           # Saga orchestration with compensation
+│       │   ├── types.py
+│       │   ├── resolver.py
+│       │   ├── test_handler.py
+│       │   └── test_resolver.py
+│       └── onboard_trial_async/     # Async Restate workflow
+│           ├── restate_workflow.py  # Restate workflow definition
+│           ├── types.py
+│           ├── resolver.py          # Mutation + subscription
+│           ├── webhook.py           # Webhook for progress callbacks
+│           ├── pubsub.py            # In-memory pub/sub for subscriptions
+│           ├── test_resolver.py
+│           ├── test_pubsub.py
+│           └── test_webhook.py
 ├── e2e_tests/             # End-to-end integration tests (NOT unit tests)
 │   ├── conftest.py
 │   ├── test_trial_lifecycle.py
-│   ├── test_site_registration.py
-│   └── test_onboarding_saga.py
-└── main.py
+│   └── test_site_registration.py
+├── main.py
+└── restate_service.py     # Restate workflow service endpoint
 ```
 
 **Key Principles:**
@@ -271,14 +297,50 @@ mutation RegisterSite($input: RegisterSiteToTrialInput!) {
 }
 ```
 
-### Start trial onboarding workflow
+### Synchronous Saga Workflow
 ```graphql
-mutation StartOnboarding($input: OnboardTrialInput!) {
-  startOnboarding(input: $input) {
-    sagaId
+mutation OnboardTrialSync($input: OnboardTrialSyncInput!) {
+  onboardTrialSync(input: $input) {
+    success
     trialId
-    state
     message
+    stepsCompleted
+  }
+}
+```
+
+Variables:
+```json
+{
+  "input": {
+    "name": "New Trial",
+    "phase": "Phase I",
+    "initialProtocolVersion": "v1.0",
+    "sites": [
+      { "name": "Site A", "country": "USA" },
+      { "name": "Site B", "country": "UK" }
+    ]
+  }
+}
+```
+
+### Async Restate Workflow
+```graphql
+# Start workflow (returns immediately)
+mutation StartAsync($input: OnboardTrialAsyncInput!) {
+  startOnboardTrialAsync(input: $input) {
+    workflowId
+    message
+  }
+}
+
+# Subscribe to progress updates
+subscription WorkflowProgress($workflowId: String!) {
+  workflowProgress(workflowId: $workflowId) {
+    workflowId
+    status
+    message
+    trialId
   }
 }
 ```
@@ -303,22 +365,70 @@ mutation StartOnboarding($input: OnboardTrialInput!) {
 
 Run: `uv run python -m app.infrastructure.database.seed`
 
+## Docker + Restate Setup
+
+The async workflow requires Restate runtime. Use Docker Compose for local development:
+
+```bash
+# Start all services (Restate, API, Restate service endpoint)
+docker-compose up --build
+
+# Services:
+# - Restate server: http://localhost:8080
+# - Restate admin: http://localhost:9070
+# - GraphQL API: http://localhost:8000/graphql
+# - Restate workflow endpoint: http://localhost:9080
+```
+
+The compose setup:
+1. **restate**: Restate server for durable execution
+2. **api**: Main FastAPI GraphQL API
+3. **restate-service**: Serves Restate workflow handlers
+4. **restate-register**: Auto-registers workflow endpoint with Restate
+
+For local development without Docker:
+```bash
+# Terminal 1: Start Restate server
+docker run --name restate_dev --rm -p 8080:8080 -p 9070:9070 restatedev/restate:latest
+
+# Terminal 2: Start main API
+uv run uvicorn app.main:app --reload --port 8000
+
+# Terminal 3: Start Restate service endpoint
+uv run uvicorn app.restate_service:app --reload --port 9080
+
+# Terminal 4: Register workflow with Restate
+curl -X POST http://localhost:9070/endpoints \
+  -H 'Content-Type: application/json' \
+  -d '{"uri": "http://localhost:9080"}'
+```
+
 ## UV + Runbook
 ```bash
-uv init clinical-demo
-uv add "strawberry-graphql>=0.211" "uvicorn>=0.30" "SQLAlchemy>=2.0" "pydantic>=2.8" "python-dotenv>=1.0" "alembic>=1.13" "pytest>=8.0"
+# Install dependencies
+uv sync
 
-# optional migrations
-uv run alembic upgrade head
-
-# seed
+# Seed database
 uv run python -m app.infrastructure.database.seed
 
-# serve
+# Run tests
+pytest  # Runs all co-located unit tests
+
+# Serve locally (without Restate)
 uv run uvicorn app.main:app --reload
 
-# test
-pytest  # Runs all co-located unit tests and e2e tests
+# Serve with Restate (see Docker setup above)
+docker-compose up --build
+```
+
+**Dependencies:**
+- strawberry-graphql (GraphQL server)
+- uvicorn (ASGI server)
+- SQLAlchemy (ORM)
+- pydantic (validation)
+- restate-sdk (durable workflows)
+- httpx (HTTP client for Restate)
+- pytest (testing)
 ```
 
 ## Acceptance Criteria
@@ -326,6 +436,8 @@ pytest  # Runs all co-located unit tests and e2e tests
 - One resolver per use case. No entity-centric resolvers.
 - `register_site_to_trial` performs an atomic multi-table transaction.
 - All commands write audit logs.
-- Workflow `onboard_trial` updates saga table and exposes status.
-- Unit and integration tests pass.
+- **Two workflow patterns**:
+  - Synchronous saga with in-memory compensation
+  - Async Restate workflow with durable execution and GraphQL subscriptions
+- Unit tests pass.
 - Shared code minimal and aligned with lightweight vertical-slice guidance.

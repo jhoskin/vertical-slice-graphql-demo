@@ -105,19 +105,3 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.utcnow()
     )
-
-
-class SagaOnboardTrial(Base):
-    """Saga state for trial onboarding workflow."""
-    __tablename__ = "saga_onboard_trial"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    trial_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    state: Mapped[str] = mapped_column(String(50), nullable=False)
-    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.utcnow()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow()
-    )

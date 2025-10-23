@@ -14,7 +14,6 @@ from app.infrastructure.database.models import (
     Site,
     Trial,
     TrialSite,
-    SagaOnboardTrial,
 )
 
 
@@ -124,20 +123,6 @@ def test_audit_log_creation(in_memory_session: Session) -> None:
     assert audit.action == "create_trial"
     assert audit.entity == "trial"
     assert audit.entity_id == "123"
-
-
-def test_saga_onboard_trial_creation(in_memory_session: Session) -> None:
-    """Test creating a saga state entry."""
-    saga = SagaOnboardTrial(state="STARTED", trial_id=None, error=None)
-    in_memory_session.add(saga)
-    in_memory_session.commit()
-
-    assert saga.id is not None
-    assert saga.state == "STARTED"
-    assert saga.trial_id is None
-    assert saga.error is None
-    assert isinstance(saga.created_at, datetime)
-    assert isinstance(saga.updated_at, datetime)
 
 
 def test_trial_relationships(in_memory_session: Session) -> None:

@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Restate server (durable execution engine)
+  restate:
+    image: restatedev/restate:latest
+    ports:
+      - "8080:8080"  # Restate HTTP endpoint
+      - "9070:9070"  # Restate admin API
+    environment:
+      - RUST_LOG=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9070/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - restate-network
+
+  # Main FastAPI application (GraphQL API)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./clinical_trials.db
+      - RESTATE_URL=http://restate:8080
+    depends_on:
+      restate:
+        condition: service_healthy
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    networks:
+      - restate-network
+
+  # Restate service endpoint (serves workflow handlers)
+  restate-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9080:9080"
+    environment:
+      - DATABASE_URL=sqlite:///./clinical_trials.db
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    command: ["uv", "run", "uvicorn", "app.restate_service:app", "--host", "0.0.0.0", "--port", "9080"]
+    networks:
+      - restate-network
+
+  # Register the Restate service endpoint with Restate server
+  restate-register:
+    image: curlimages/curl:latest
+    depends_on:
+      restate:
+        condition: service_healthy
+      restate-service:
+        condition: service_started
+    command: >
+      sh -c "
+      sleep 5 &&
+      curl -X POST http://restate:9070/endpoints \
+        -H 'Content-Type: application/json' \
+        -d '{\"uri\": \"http://restate-service:9080\"}' &&
+      echo 'Restate service registered successfully'
+      "
+    networks:
+      - restate-network
+
+networks:
+  restate-network:
+    driver: bridge
