@@ -119,9 +119,12 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             trial=trial_data,
         )
 
-        # Add protocol directly to database (not via GraphQL since no mutation exists)
+        # Add protocol with ctx.run() for durable execution
         logger.info(f"[WORKFLOW {workflow_id}] Adding protocol {protocol_version} to trial {trial_id}")
-        protocol_result = _add_protocol(trial_id, protocol_version, trial_name)
+        protocol_result = await ctx.run(
+            "add_protocol",
+            lambda: _add_protocol(trial_id, protocol_version, trial_name)
+        )
         logger.info(f"[WORKFLOW {workflow_id}] Protocol added: {protocol_result}")
 
         await _send_progress(
@@ -154,9 +157,12 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
                 site_progress=site_prog,
             )
 
-            # Register site directly
+            # Register site with ctx.run() for durable execution
             logger.info(f"[WORKFLOW {workflow_id}] Registering site {i+1}/{len(sites)}: {site['name']}, {site['country']}")
-            site_result = _register_site(trial_id, site["name"], site["country"])
+            site_result = await ctx.run(
+                f"register_site_{i}",
+                lambda site_name=site["name"], country=site["country"]: _register_site(trial_id, site_name, country)
+            )
             logger.info(f"[WORKFLOW {workflow_id}] Site registered: {site_result}")
 
             await _send_progress(

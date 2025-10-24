@@ -64,7 +64,7 @@ async def update_trial_metadata_via_vo_handler(
 
             # Re-raise terminal errors with proper message for GraphQL
             from app.usecases.commands.trial_management._errors import StaleDataError
-            if "version mismatch" in error_message.lower() or "stale" in error_message.lower():
+            if any(keyword in error_message.lower() for keyword in ["version mismatch", "stale", "timestamp mismatch"]):
                 raise StaleDataError(error_message)
 
             # For other errors, raise generic HTTP error
