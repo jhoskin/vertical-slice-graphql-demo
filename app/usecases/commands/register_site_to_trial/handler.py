@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.audit import audited
 from app.infrastructure.database.models import Site, Trial, TrialSite
 from app.usecases.commands.register_site_to_trial.types import (
-    RegisterSiteToTrialInput,
+    RegisterSiteToTrialInputModel,
     RegisterSiteToTrialResponse,
 )
 
@@ -30,7 +30,7 @@ class DuplicateSiteLinkError(Exception):
     entity_id_fn=lambda r: f"{r.trial_id}_{r.site_id}",
 )
 def register_site_to_trial_handler(
-    session: Session, input_data: RegisterSiteToTrialInput
+    session: Session, input_data: RegisterSiteToTrialInputModel
 ) -> RegisterSiteToTrialResponse:
     """
     Register a site to a trial.

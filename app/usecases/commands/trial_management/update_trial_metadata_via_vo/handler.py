@@ -42,6 +42,8 @@ async def update_trial_metadata_via_vo_handler(
         update_data["name"] = input_data.name
     if input_data.phase is not None:
         update_data["phase"] = input_data.phase
+    if input_data.expected_version is not None:
+        update_data["expected_version"] = input_data.expected_version
 
     # Call Virtual Object via Restate
     # The trial_id is the key - Restate serializes all calls with the same key
@@ -50,7 +52,24 @@ async def update_trial_metadata_via_vo_handler(
             f"{restate_url}/TrialVirtualObject/{input_data.trial_id}/update_metadata",
             json=update_data,
         )
-        response.raise_for_status()
+
+        # Check for errors and propagate terminal errors (like StaleDataError) properly
+        if response.status_code != 200:
+            # Try to extract error message from Restate response
+            try:
+                error_data = response.json()
+                error_message = error_data.get("message", str(response.text))
+            except Exception:
+                error_message = response.text
+
+            # Re-raise terminal errors with proper message for GraphQL
+            from app.usecases.commands.trial_management._errors import StaleDataError
+            if "version mismatch" in error_message.lower() or "stale" in error_message.lower():
+                raise StaleDataError(error_message)
+
+            # For other errors, raise generic HTTP error
+            response.raise_for_status()
+
         result = response.json()
 
     # Convert response back to UpdateTrialMetadataResponse
@@ -61,6 +80,7 @@ async def update_trial_metadata_via_vo_handler(
         name=result["name"],
         phase=result["phase"],
         status=result["status"],
+        version=result["version"],
         created_at=datetime.fromisoformat(result["created_at"]),
         changes=result["changes"],
     )

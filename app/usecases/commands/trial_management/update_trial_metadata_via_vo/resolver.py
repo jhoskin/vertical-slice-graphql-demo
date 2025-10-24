@@ -22,20 +22,24 @@ async def update_trial_metadata_via_vo(
     """
     GraphQL mutation to update trial metadata via Virtual Object.
 
-    This mutation uses Restate Virtual Objects for automatic concurrency protection.
-    All concurrent updates to the same trial are automatically serialized by Restate,
-    eliminating the need for database-level locking.
+    This mutation uses Restate Virtual Objects for automatic concurrency protection
+    combined with optimistic locking for stale data protection.
 
-    Benefits over traditional approach:
-    - No SELECT FOR UPDATE needed
-    - No optimistic locking complexity
+    All concurrent updates to the same trial are automatically serialized by Restate,
+    and version checking prevents updates based on stale data.
+
+    Benefits:
+    - Automatic serialization of concurrent writes per trial_id
+    - Version checking prevents stale data updates
     - Scales across multiple app instances
     - Clean separation of concurrency control from business logic
 
     Args:
-        input: Update input with trial_id and optional name/phase
+        input: Update input with trial_id, optional name/phase, and optional expected_version
 
     Returns:
         Updated trial data with change summary
     """
-    return await update_trial_metadata_via_vo_handler(input)
+    # Convert Strawberry-wrapped input to validated Pydantic model
+    validated_input = input.to_pydantic()
+    return await update_trial_metadata_via_vo_handler(validated_input)

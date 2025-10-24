@@ -11,8 +11,8 @@ from app.usecases.workflows.onboard_trial_sync.handler import (
     onboard_trial_sync_handler,
 )
 from app.usecases.workflows.onboard_trial_sync.types import (
-    OnboardTrialSyncInput,
-    SiteInput,
+    OnboardTrialSyncInputModel,
+    SiteInputModel,
 )
 
 
@@ -29,13 +29,13 @@ def in_memory_session() -> Session:
 
 def test_saga_success_all_steps(in_memory_session: Session) -> None:
     """Test successful saga execution with all steps completing."""
-    input_data = OnboardTrialSyncInput(
+    input_data = OnboardTrialSyncInputModel(
         name="Test Trial",
         phase="Phase I",
         initial_protocol_version="v1.0",
         sites=[
-            SiteInput(name="Site A", country="USA"),
-            SiteInput(name="Site B", country="UK"),
+            SiteInputModel(name="Site A", country="USA"),
+            SiteInputModel(name="Site B", country="UK"),
         ],
     )
 
@@ -68,11 +68,11 @@ def test_saga_success_all_steps(in_memory_session: Session) -> None:
 
 def test_saga_compensation_on_invalid_phase(in_memory_session: Session) -> None:
     """Test that saga compensates when trial creation fails due to invalid phase."""
-    input_data = OnboardTrialSyncInput(
+    input_data = OnboardTrialSyncInputModel(
         name="Invalid Trial",
         phase="Phase X",  # Invalid phase
         initial_protocol_version="v1.0",
-        sites=[SiteInput(name="Site A", country="USA")],
+        sites=[SiteInputModel(name="Site A", country="USA")],
     )
 
     with pytest.raises(SagaFailedError):
@@ -85,7 +85,7 @@ def test_saga_compensation_on_invalid_phase(in_memory_session: Session) -> None:
 
 def test_saga_no_sites(in_memory_session: Session) -> None:
     """Test saga with no sites to register."""
-    input_data = OnboardTrialSyncInput(
+    input_data = OnboardTrialSyncInputModel(
         name="Trial Without Sites",
         phase="Phase II",
         initial_protocol_version="v2.0",

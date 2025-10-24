@@ -19,10 +19,13 @@ def update_trial_metadata(input: UpdateTrialMetadataInput) -> UpdateTrialMetadat
     GraphQL mutation to update trial metadata.
 
     Args:
-        input: Update input with trial_id and optional name/phase
+        input: Update input with trial_id, optional name/phase, and optional expected_version
 
     Returns:
         Updated trial data with change summary
     """
+    # Convert Strawberry-wrapped input to validated Pydantic model
+    validated_input = input.to_pydantic()
+
     with session_scope() as session:
-        return update_trial_metadata_handler(session, input)
+        return update_trial_metadata_handler(session, validated_input)

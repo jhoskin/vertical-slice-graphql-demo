@@ -19,10 +19,13 @@ def register_site_to_trial(input: RegisterSiteToTrialInput) -> RegisterSiteToTri
     GraphQL mutation to register a site to a trial.
 
     Args:
-        input: Site and trial information
+        input: Site and trial information (validated via Pydantic)
 
     Returns:
         Registration result
     """
+    # Convert GraphQL input to validated Pydantic model
+    validated_input = input.to_pydantic()
+
     with session_scope() as session:
-        return register_site_to_trial_handler(session, input)
+        return register_site_to_trial_handler(session, validated_input)

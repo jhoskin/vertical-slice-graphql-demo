@@ -6,9 +6,11 @@ from enum import Enum
 from typing import Optional
 
 import strawberry
+from pydantic import BaseModel, field_validator
+from strawberry.experimental.pydantic import input as pydantic_input
 
 # Reuse SiteInput from sync workflow to avoid duplication
-from app.usecases.workflows.onboard_trial_sync.types import SiteInput
+from app.usecases.workflows.onboard_trial_sync.types import SiteInputModel
 
 
 @strawberry.enum
@@ -50,13 +52,42 @@ class WorkflowError:
     error_message: str
 
 
-@strawberry.input
-class OnboardTrialAsyncInput:
+class OnboardTrialAsyncInputModel(BaseModel):
     """Input for asynchronous trial onboarding workflow."""
     name: str
     phase: str
     initial_protocol_version: str
-    sites: list[SiteInput]
+    sites: list[SiteInputModel]
+
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if len(v.strip()) == 0:
+            raise ValueError('name cannot be empty')
+        return v
+
+    @field_validator('phase')
+    @classmethod
+    def validate_phase(cls, v: str) -> str:
+        if len(v.strip()) == 0:
+            raise ValueError('phase cannot be empty')
+        return v
+
+    @field_validator('initial_protocol_version')
+    @classmethod
+    def validate_protocol_version(cls, v: str) -> str:
+        if len(v.strip()) == 0:
+            raise ValueError('initial_protocol_version cannot be empty')
+        return v
+
+    # Note: Empty sites list is allowed - trials can be onboarded without sites initially
+
+
+# GraphQL input type for OnboardTrialAsyncInput
+@pydantic_input(model=OnboardTrialAsyncInputModel, all_fields=True)
+class OnboardTrialAsyncInput:
+    """GraphQL input for asynchronous trial onboarding (backed by Pydantic)."""
+    pass
 
 
 @strawberry.type

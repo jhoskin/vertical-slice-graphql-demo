@@ -22,10 +22,13 @@ def onboard_trial_sync(input: OnboardTrialSyncInput) -> OnboardTrialSyncResponse
     If any step fails, all previous steps are automatically compensated.
 
     Args:
-        input: Onboarding input with trial, protocol, and sites
+        input: Onboarding input with trial, protocol, and sites (validated via Pydantic)
 
     Returns:
         Response with success status and trial ID
     """
+    # Convert GraphQL input to validated Pydantic model
+    validated_input = input.to_pydantic()
+
     with session_scope() as session:
-        return onboard_trial_sync_handler(session, input)
+        return onboard_trial_sync_handler(session, validated_input)

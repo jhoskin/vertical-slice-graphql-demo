@@ -267,3 +267,219 @@ def test_concurrent_updates_via_vo(check_restate_running, check_api_running):
     assert final_trial["id"] == trial_id
     # Name should be one of the updates (serialization ensures consistency)
     assert final_trial["name"].startswith("Update")
+
+
+def test_stale_data_protection_basic(test_client):
+    """
+    Test that stale data is rejected when using expected_version.
+
+    This test demonstrates optimistic locking: if a client tries to update
+    based on an old version of the data, the update is rejected.
+    """
+    # Create a trial
+    create_mutation = """
+        mutation CreateTrial($input: CreateTrialInput!) {
+            createTrial(input: $input) {
+                id
+                name
+                phase
+                version
+            }
+        }
+    """
+
+    create_variables = {
+        "input": {
+            "name": "Stale Data Test",
+            "phase": "Phase I",
+        }
+    }
+
+    create_response = test_client.post("/graphql", json={"query": create_mutation, "variables": create_variables})
+    assert create_response.status_code == 200
+
+    create_data = create_response.json()
+    assert "errors" not in create_data
+    trial_id = create_data["data"]["createTrial"]["id"]
+    initial_version = create_data["data"]["createTrial"]["version"]
+    assert initial_version == 1  # Initial version
+
+    # First update (should succeed with correct version)
+    update_mutation = """
+        mutation UpdateTrial($input: UpdateTrialMetadataInput!) {
+            updateTrialMetadata(input: $input) {
+                id
+                name
+                version
+                changes
+            }
+        }
+    """
+
+    update1_variables = {
+        "input": {
+            "trialId": trial_id,
+            "name": "First Update",
+            "expectedVersion": initial_version,
+        }
+    }
+
+    update1_response = test_client.post("/graphql", json={"query": update_mutation, "variables": update1_variables})
+    assert update1_response.status_code == 200
+
+    update1_data = update1_response.json()
+    assert "errors" not in update1_data
+    assert update1_data["data"]["updateTrialMetadata"]["name"] == "First Update"
+    new_version = update1_data["data"]["updateTrialMetadata"]["version"]
+    assert new_version == 2  # Version incremented
+
+    # Second update with STALE version (should fail)
+    update2_variables = {
+        "input": {
+            "trialId": trial_id,
+            "name": "Stale Update",
+            "expectedVersion": initial_version,  # Using old version!
+        }
+    }
+
+    update2_response = test_client.post("/graphql", json={"query": update_mutation, "variables": update2_variables})
+    assert update2_response.status_code == 200
+
+    update2_data = update2_response.json()
+    # Should have an error about version mismatch
+    assert "errors" in update2_data
+    error_message = update2_data["errors"][0]["message"]
+    assert "version mismatch" in error_message.lower() or "stale" in error_message.lower()
+    assert "expected 1" in error_message.lower()
+    assert "current is 2" in error_message.lower()
+
+    # Third update with CORRECT version (should succeed)
+    update3_variables = {
+        "input": {
+            "trialId": trial_id,
+            "name": "Fresh Update",
+            "expectedVersion": new_version,  # Using current version
+        }
+    }
+
+    update3_response = test_client.post("/graphql", json={"query": update_mutation, "variables": update3_variables})
+    assert update3_response.status_code == 200
+
+    update3_data = update3_response.json()
+    assert "errors" not in update3_data
+    assert update3_data["data"]["updateTrialMetadata"]["name"] == "Fresh Update"
+    assert update3_data["data"]["updateTrialMetadata"]["version"] == 3
+
+
+@pytest.mark.restate_e2e
+def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
+    """
+    Test stale data protection via Virtual Object with Restate.
+
+    This demonstrates that version checking works correctly even when
+    updates are serialized through Restate's Virtual Object.
+    The VO provides serialization for concurrent writes from different clients,
+    while version checking protects against stale data from the same client.
+    """
+    import httpx
+
+    # Create a trial
+    create_mutation = """
+        mutation CreateTrial($input: CreateTrialInput!) {
+            createTrial(input: $input) {
+                id
+                version
+            }
+        }
+    """
+
+    response = httpx.post(
+        "http://localhost:8000/graphql",
+        json={
+            "query": create_mutation,
+            "variables": {"input": {"name": "VO Stale Test", "phase": "Phase I"}},
+        },
+        timeout=5.0
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "errors" not in data
+    trial_id = data["data"]["createTrial"]["id"]
+    initial_version = data["data"]["createTrial"]["version"]
+
+    # First update via VO (should succeed)
+    update_mutation = """
+        mutation UpdateTrialViaVO($input: UpdateTrialMetadataInput!) {
+            updateTrialMetadataViaVo(input: $input) {
+                id
+                name
+                version
+            }
+        }
+    """
+
+    response1 = httpx.post(
+        "http://localhost:8000/graphql",
+        json={
+            "query": update_mutation,
+            "variables": {
+                "input": {
+                    "trialId": trial_id,
+                    "name": "VO Update 1",
+                    "expectedVersion": initial_version,
+                }
+            },
+        },
+        timeout=5.0
+    )
+    assert response1.status_code == 200
+
+    data1 = response1.json()
+    assert "errors" not in data1
+    new_version = data1["data"]["updateTrialMetadataViaVo"]["version"]
+    assert new_version == 2
+
+    # Second update via VO with stale version (should fail)
+    response2 = httpx.post(
+        "http://localhost:8000/graphql",
+        json={
+            "query": update_mutation,
+            "variables": {
+                "input": {
+                    "trialId": trial_id,
+                    "name": "VO Stale Update",
+                    "expectedVersion": initial_version,  # Stale!
+                }
+            },
+        },
+        timeout=5.0
+    )
+    assert response2.status_code == 200
+
+    data2 = response2.json()
+    # Should have error about version mismatch
+    assert "errors" in data2
+    error_message = data2["errors"][0]["message"]
+    assert "version mismatch" in error_message.lower() or "stale" in error_message.lower()
+
+    # Third update with correct version (should succeed)
+    response3 = httpx.post(
+        "http://localhost:8000/graphql",
+        json={
+            "query": update_mutation,
+            "variables": {
+                "input": {
+                    "trialId": trial_id,
+                    "name": "VO Fresh Update",
+                    "expectedVersion": new_version,  # Fresh!
+                }
+            },
+        },
+        timeout=5.0
+    )
+    assert response3.status_code == 200
+
+    data3 = response3.json()
+    assert "errors" not in data3
+    assert data3["data"]["updateTrialMetadataViaVo"]["version"] == 3

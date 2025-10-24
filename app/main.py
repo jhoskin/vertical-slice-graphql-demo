@@ -40,7 +40,7 @@ async def register_with_restate():
 
     # Check if Restate is running
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(http1=True, http2=False) as client:
             health_response = await client.get(f"{restate_url}/health", timeout=2.0)
             if health_response.status_code != 200:
                 logger.warning("Restate not available, skipping auto-registration")
@@ -49,17 +49,19 @@ async def register_with_restate():
         logger.info(f"Restate not available ({e}), skipping auto-registration")
         return
 
-    # Wait a moment for server to be fully ready
-    await asyncio.sleep(1)
-
     # Register deployment with retries
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            async with httpx.AsyncClient() as client:
+            # Use HTTP/1.1 explicitly as Restate's discovery endpoint requires it
+            async with httpx.AsyncClient(http1=True, http2=False) as client:
                 response = await client.post(
                     f"{restate_url}/deployments",
-                    json={"uri": service_url, "force": True},
+                    json={
+                        "uri": service_url,
+                        "force": True,
+                        "use_http_11": True,  # Tell Restate to use HTTP/1.1 for discovery
+                    },
                     timeout=10.0
                 )
 
@@ -90,12 +92,19 @@ async def lifespan(app_instance: FastAPI):
 
     Initializes database and registers with Restate on startup.
     """
+    import asyncio
+
     # Startup: Initialize database
     init_db()
     print("✓ Database initialized")
 
-    # Auto-register with Restate if available
-    await register_with_restate()
+    # Schedule Restate registration as a background task after server is ready
+    # We need to wait for the server to actually bind the port before registering
+    async def delayed_registration():
+        await asyncio.sleep(2)  # Wait for server to be ready
+        await register_with_restate()
+
+    asyncio.create_task(delayed_registration())
 
     yield
 

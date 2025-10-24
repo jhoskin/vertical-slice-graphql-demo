@@ -17,10 +17,13 @@ def create_trial(input: CreateTrialInput) -> CreateTrialResponse:
     GraphQL mutation to create a new trial.
 
     Args:
-        input: Trial creation input
+        input: Trial creation input (validated via Pydantic)
 
     Returns:
         Created trial data
     """
+    # Convert Strawberry-wrapped input to validated Pydantic model
+    validated_input = input.to_pydantic()
+
     with session_scope() as session:
-        return create_trial_handler(session, input)
+        return create_trial_handler(session, validated_input)

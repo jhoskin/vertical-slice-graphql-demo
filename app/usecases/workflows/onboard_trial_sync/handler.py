@@ -10,13 +10,13 @@ from app.infrastructure.database.models import ProtocolVersion, Trial
 from app.usecases.commands.register_site_to_trial.handler import (
     register_site_to_trial_handler,
 )
-from app.usecases.commands.register_site_to_trial.types import RegisterSiteToTrialInput
+from app.usecases.commands.register_site_to_trial.types import RegisterSiteToTrialInputModel
 from app.usecases.commands.trial_management.create_trial.handler import (
     create_trial_handler,
 )
-from app.usecases.commands.trial_management.create_trial.types import CreateTrialInput
+from app.usecases.commands.trial_management.create_trial.types import CreateTrialInputModel
 from app.usecases.workflows.onboard_trial_sync.types import (
-    OnboardTrialSyncInput,
+    OnboardTrialSyncInputModel,
     OnboardTrialSyncResponse,
 )
 
@@ -27,7 +27,7 @@ class SagaFailedError(Exception):
 
 
 def onboard_trial_sync_handler(
-    session: Session, input_data: OnboardTrialSyncInput
+    session: Session, input_data: OnboardTrialSyncInputModel
 ) -> OnboardTrialSyncResponse:
     """
     Synchronous saga for trial onboarding with compensation.
@@ -55,7 +55,7 @@ def onboard_trial_sync_handler(
 
     try:
         # Step 1: Create trial
-        trial_input = CreateTrialInput(
+        trial_input = CreateTrialInputModel(
             name=input_data.name,
             phase=input_data.phase,
         )
@@ -95,7 +95,7 @@ def onboard_trial_sync_handler(
         # Step 3: Register sites
         site_ids = []
         for i, site_input in enumerate(input_data.sites):
-            register_input = RegisterSiteToTrialInput(
+            register_input = RegisterSiteToTrialInputModel(
                 trial_id=trial_id,
                 site_name=site_input.name,
                 country=site_input.country,

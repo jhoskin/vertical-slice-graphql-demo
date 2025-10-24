@@ -7,13 +7,13 @@ from app.core.audit import audited
 from app.infrastructure.database.models import Trial
 from app.usecases.commands.trial_management._validation import validate_phase
 from app.usecases.commands.trial_management.create_trial.types import (
-    CreateTrialInput,
+    CreateTrialInputModel,
     CreateTrialResponse,
 )
 
 
 @audited(action="create_trial", entity="trial", entity_id_fn=lambda r: str(r.id))
-def create_trial_handler(session: Session, input_data: CreateTrialInput) -> CreateTrialResponse:
+def create_trial_handler(session: Session, input_data: CreateTrialInputModel) -> CreateTrialResponse:
     """
     Create a new trial.
 
@@ -45,5 +45,6 @@ def create_trial_handler(session: Session, input_data: CreateTrialInput) -> Crea
         name=trial.name,
         phase=trial.phase,
         status=trial.status,
+        version=trial.version,
         created_at=trial.created_at,
     )

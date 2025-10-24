@@ -34,20 +34,23 @@ async def start_onboard_trial_async(
     'workflowProgress' to receive updates.
 
     Args:
-        input: Onboarding input with trial, protocol, and sites
+        input: Onboarding input with trial, protocol, and sites (validated via Pydantic)
 
     Returns:
         Immediate response with workflow ID
     """
+    # Convert GraphQL input to validated Pydantic model
+    validated_input = input.to_pydantic()
+
     # Generate unique workflow ID
     workflow_id = str(uuid.uuid4())
 
     # Prepare input for Restate workflow
     workflow_input = {
-        "name": input.name,
-        "phase": input.phase,
-        "initial_protocol_version": input.initial_protocol_version,
-        "sites": [{"name": site.name, "country": site.country} for site in input.sites],
+        "name": validated_input.name,
+        "phase": validated_input.phase,
+        "initial_protocol_version": validated_input.initial_protocol_version,
+        "sites": [{"name": site.name, "country": site.country} for site in validated_input.sites],
     }
 
     # Invoke Restate workflow (non-blocking)
@@ -61,7 +64,7 @@ async def start_onboard_trial_async(
 
     return OnboardTrialAsyncResponse(
         workflow_id=workflow_id,
-        message=f"Workflow started for trial '{input.name}'. Use workflow ID to subscribe to progress.",
+        message=f"Workflow started for trial '{validated_input.name}'. Use workflow ID to subscribe to progress.",
     )
 
 

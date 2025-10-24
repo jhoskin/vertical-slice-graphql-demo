@@ -315,11 +315,11 @@ def _register_site(trial_id: int, site_name: str, country: str) -> dict:
         register_site_to_trial_handler,
     )
     from app.usecases.commands.register_site_to_trial.types import (
-        RegisterSiteToTrialInput,
+        RegisterSiteToTrialInputModel,
     )
 
     with session_scope() as session:
-        input_data = RegisterSiteToTrialInput(
+        input_data = RegisterSiteToTrialInputModel(
             trial_id=trial_id,
             site_name=site_name,
             country=country,
