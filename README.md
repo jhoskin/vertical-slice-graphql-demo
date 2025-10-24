@@ -451,6 +451,33 @@ pytest app/e2e_tests/test_sync_saga_workflow.py
 - Verify webhook callbacks and database state
 - Automatically skipped if Restate is not running
 
+### Restate Auto-Registration
+
+The application automatically registers its services with Restate on startup. This eliminates the need for manual CLI registration.
+
+**How it works:**
+1. On startup, the app checks if Restate is available at `RESTATE_ADMIN_URL` (default: `http://localhost:9070`)
+2. If Restate is running, it automatically registers the deployment at `SERVICE_URL` (default: `http://host.docker.internal:8000/restate`)
+3. Registration uses HTTP/1.1 and retries up to 3 times with backoff
+4. If Restate is not available, the app continues without error (graceful degradation)
+
+**Configuration (optional):**
+```bash
+# Override Restate admin URL
+export RESTATE_ADMIN_URL=http://localhost:9070
+
+# Override service URL (useful in production)
+export SERVICE_URL=http://myapp.example.com:8000/restate
+```
+
+**Manual registration (if needed):**
+```bash
+# Using Restate CLI (if auto-registration fails)
+restate deployments register http://host.docker.internal:8000/restate --use-http1.1 --yes
+```
+
+The auto-registration feature ensures developers don't need to remember CLI commands - just start the API and Restate, and they'll connect automatically.
+
 ## Seed Data
 - 3 trials across phases.
 - 2 sites linked to a trial.

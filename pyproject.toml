@@ -22,3 +22,8 @@ dependencies = [
 markers = [
     "restate_e2e: marks tests as requiring Restate runtime (deselect with '-m \"not restate_e2e\"')",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]

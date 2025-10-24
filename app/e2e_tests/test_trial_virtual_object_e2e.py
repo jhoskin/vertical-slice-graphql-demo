@@ -7,7 +7,30 @@ and demonstrate the concurrency protection benefits.
 Note: Full concurrency testing requires Restate to be running.
 Mark with @pytest.mark.restate_e2e for tests that require Restate.
 """
+import httpx
 import pytest
+
+
+@pytest.fixture(scope="module")
+def check_restate_running():
+    """Check that Restate is running before running tests."""
+    try:
+        response = httpx.get("http://localhost:9070/health", timeout=2.0)
+        if response.status_code != 200:
+            pytest.skip("Restate is not running. Start with: docker-compose up")
+    except Exception:
+        pytest.skip("Restate is not running. Start with: docker-compose up")
+
+
+@pytest.fixture(scope="module")
+def check_api_running():
+    """Check that GraphQL API is running."""
+    try:
+        response = httpx.get("http://localhost:8000/", timeout=2.0)
+        if response.status_code != 200:
+            pytest.skip("API is not running. Start with: docker-compose up")
+    except Exception:
+        pytest.skip("API is not running. Start with: docker-compose up")
 
 
 def test_update_trial_via_vo_basic(test_client):
