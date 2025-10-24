@@ -79,19 +79,19 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         # Add synthetic delay for human observation
         await ctx.sleep(timedelta(seconds=2))
 
-        # Create trial via GraphQL API with automatic retry logic
+        # Create trial via GraphQL API with durable execution
         logger.info(f"[WORKFLOW {workflow_id}] Creating trial via GraphQL API")
 
-        # Wrap GraphQL call with ctx.run() for Restate retry logic
-        trial_result = await ctx.run(
-            "create_trial",
-            lambda: execute_graphql_mutation(
+        # Define async function for ctx.run_typed - Restate will durably track this
+        async def create_trial_mutation():
+            return await execute_graphql_mutation(
                 "mutation CreateTrial($input: CreateTrialInput!) { createTrial(input: $input) { id } }",
                 {"input": {"name": trial_name, "phase": trial_phase}},
                 api_url,
                 log_prefix=f"[WORKFLOW {workflow_id}]"
             )
-        )
+
+        trial_result = await ctx.run("create_trial", create_trial_mutation)
         trial_id = trial_result["data"]["createTrial"]["id"]
         logger.info(f"[WORKFLOW {workflow_id}] Trial created successfully with ID: {trial_id}")
 
