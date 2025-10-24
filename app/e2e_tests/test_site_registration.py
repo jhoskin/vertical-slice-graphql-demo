@@ -55,7 +55,7 @@ def test_register_site_to_trial(graphql_client):
 
     # Verify the site appears in trial details
     get_trial_query = """
-        query GetTrial($id: Int!) {
+        query GetTrial($id: String!) {
             trial(id: $id) {
                 id
                 name
@@ -128,7 +128,7 @@ def test_register_existing_site_to_new_trial(graphql_client):
 
     # Verify both trials show the site
     get_trial_query = """
-        query GetTrial($id: Int!) {
+        query GetTrial($id: String!) {
             trial(id: $id) {
                 sites {
                     id

@@ -42,8 +42,8 @@ async def update_trial_metadata_via_vo_handler(
         update_data["name"] = input_data.name
     if input_data.phase is not None:
         update_data["phase"] = input_data.phase
-    if input_data.expected_version is not None:
-        update_data["expected_version"] = input_data.expected_version
+    if input_data.expected_updated_at is not None:
+        update_data["expected_updated_at"] = input_data.expected_updated_at.isoformat()
 
     # Call Virtual Object via Restate
     # The trial_id is the key - Restate serializes all calls with the same key
@@ -80,7 +80,7 @@ async def update_trial_metadata_via_vo_handler(
         name=result["name"],
         phase=result["phase"],
         status=result["status"],
-        version=result["version"],
+        updated_at=datetime.fromisoformat(result["updated_at"]),
         created_at=datetime.fromisoformat(result["created_at"]),
         changes=result["changes"],
     )

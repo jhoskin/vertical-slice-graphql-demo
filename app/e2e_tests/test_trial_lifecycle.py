@@ -36,7 +36,7 @@ def test_create_get_update_trial_lifecycle(graphql_client):
 
     # Step 2: Get the trial by ID
     get_query = """
-        query GetTrial($id: Int!) {
+        query GetTrial($id: String!) {
             trial(id: $id) {
                 id
                 name

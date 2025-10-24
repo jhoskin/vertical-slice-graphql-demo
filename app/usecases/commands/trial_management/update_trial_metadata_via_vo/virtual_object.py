@@ -35,35 +35,42 @@ async def update_metadata(ctx: ObjectContext, update_data: dict) -> dict:
     Update trial metadata with automatic concurrency protection.
 
     Restate guarantees that all calls to this method with the same trial_id
-    (ctx.key()) are executed serially, one at a time. Combined with version
+    (ctx.key()) are executed serially, one at a time. Combined with timestamp
     checking in the handler, this provides complete protection against both
     race conditions and stale data updates.
 
     Args:
         ctx: Restate object context (key is trial_id)
-        update_data: Dict with 'name', 'phase', and optional 'expected_version' fields
+        update_data: Dict with 'name', 'phase', and optional 'expected_updated_at' fields
 
     Returns:
         Dict with updated trial data and changes summary
     """
-    trial_id = int(ctx.key())
+    from datetime import datetime
+
+    trial_id = ctx.key()  # Now a UUID string
     logger.info(f"[TrialVO {trial_id}] Updating metadata: {update_data}")
 
     # Extract update fields
     name = update_data.get("name")
     phase = update_data.get("phase")
-    expected_version = update_data.get("expected_version")
+    expected_updated_at_str = update_data.get("expected_updated_at")
+
+    # Parse expected_updated_at if provided
+    expected_updated_at = None
+    if expected_updated_at_str:
+        expected_updated_at = datetime.fromisoformat(expected_updated_at_str)
 
     # Create validated Pydantic input (validation happens in constructor)
     input_data = UpdateTrialMetadataInputModel(
         trial_id=trial_id,
         name=name,
         phase=phase,
-        expected_version=expected_version,
+        expected_updated_at=expected_updated_at,
     )
 
     # Call existing handler with database session
-    # The handler already has version checking, validation and audit logging
+    # The handler already has timestamp checking, validation and audit logging
     with session_scope() as session:
         result = update_trial_metadata_handler(session, input_data)
 
@@ -73,7 +80,7 @@ async def update_metadata(ctx: ObjectContext, update_data: dict) -> dict:
         "name": result.name,
         "phase": result.phase,
         "status": result.status,
-        "version": result.version,
+        "updated_at": result.updated_at.isoformat(),
         "created_at": result.created_at.isoformat(),
         "changes": result.changes,
     }

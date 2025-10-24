@@ -30,7 +30,7 @@ class OnboardTrialStatus(Enum):
 @dataclass
 class TrialData:
     """Trial entity data included in progress updates."""
-    id: int
+    id: str
     name: str
     phase: str
 

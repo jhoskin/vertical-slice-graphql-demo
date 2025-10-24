@@ -10,15 +10,15 @@ from strawberry.experimental.pydantic import input as pydantic_input
 
 class RegisterSiteToTrialInputModel(BaseModel):
     """Input for registering a site to a trial."""
-    trial_id: int
+    trial_id: str
     site_name: str
     country: str
 
     @field_validator('trial_id')
     @classmethod
-    def validate_trial_id(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError('trial_id must be positive')
+    def validate_trial_id(cls, v: str) -> str:
+        if not v or len(v.strip()) == 0:
+            raise ValueError('trial_id cannot be empty')
         return v
 
     @field_validator('site_name')
@@ -47,8 +47,8 @@ class RegisterSiteToTrialInput:
 @dataclass
 class RegisterSiteToTrialResponse:
     """Response from registering a site to a trial."""
-    trial_id: int
-    site_id: int
+    trial_id: str
+    site_id: str
     site_name: str
     country: str
     link_status: str

@@ -79,6 +79,6 @@ class OnboardTrialSyncInput:
 class OnboardTrialSyncResponse:
     """Response from synchronous trial onboarding saga."""
     success: bool
-    trial_id: Optional[int]
+    trial_id: Optional[str]
     message: str
     steps_completed: list[str]  # Which steps succeeded before failure (if any)

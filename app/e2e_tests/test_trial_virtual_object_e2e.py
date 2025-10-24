@@ -249,7 +249,7 @@ def test_concurrent_updates_via_vo(check_restate_running, check_api_running):
     # The final state should be consistent (one of the updates won)
     # Query the trial to verify
     query = """
-        query GetTrial($id: Int!) {
+        query GetTrial($id: String!) {
             trial(id: $id) {
                 id
                 name
@@ -271,10 +271,10 @@ def test_concurrent_updates_via_vo(check_restate_running, check_api_running):
 
 def test_stale_data_protection_basic(test_client):
     """
-    Test that stale data is rejected when using expected_version.
+    Test that stale data is rejected when using expected_updated_at.
 
     This test demonstrates optimistic locking: if a client tries to update
-    based on an old version of the data, the update is rejected.
+    based on an old timestamp of the data, the update is rejected.
     """
     # Create a trial
     create_mutation = """
@@ -283,7 +283,7 @@ def test_stale_data_protection_basic(test_client):
                 id
                 name
                 phase
-                version
+                updatedAt
             }
         }
     """
@@ -301,16 +301,16 @@ def test_stale_data_protection_basic(test_client):
     create_data = create_response.json()
     assert "errors" not in create_data
     trial_id = create_data["data"]["createTrial"]["id"]
-    initial_version = create_data["data"]["createTrial"]["version"]
-    assert initial_version == 1  # Initial version
+    initial_updated_at = create_data["data"]["createTrial"]["updatedAt"]
+    assert initial_updated_at  # Has initial timestamp
 
-    # First update (should succeed with correct version)
+    # First update (should succeed with correct timestamp)
     update_mutation = """
         mutation UpdateTrial($input: UpdateTrialMetadataInput!) {
             updateTrialMetadata(input: $input) {
                 id
                 name
-                version
+                updatedAt
                 changes
             }
         }
@@ -320,7 +320,7 @@ def test_stale_data_protection_basic(test_client):
         "input": {
             "trialId": trial_id,
             "name": "First Update",
-            "expectedVersion": initial_version,
+            "expectedUpdatedAt": initial_updated_at,
         }
     }
 
@@ -330,15 +330,15 @@ def test_stale_data_protection_basic(test_client):
     update1_data = update1_response.json()
     assert "errors" not in update1_data
     assert update1_data["data"]["updateTrialMetadata"]["name"] == "First Update"
-    new_version = update1_data["data"]["updateTrialMetadata"]["version"]
-    assert new_version == 2  # Version incremented
+    new_updated_at = update1_data["data"]["updateTrialMetadata"]["updatedAt"]
+    assert new_updated_at != initial_updated_at  # Timestamp changed
 
-    # Second update with STALE version (should fail)
+    # Second update with STALE timestamp (should fail)
     update2_variables = {
         "input": {
             "trialId": trial_id,
             "name": "Stale Update",
-            "expectedVersion": initial_version,  # Using old version!
+            "expectedUpdatedAt": initial_updated_at,  # Using old timestamp!
         }
     }
 
@@ -346,19 +346,17 @@ def test_stale_data_protection_basic(test_client):
     assert update2_response.status_code == 200
 
     update2_data = update2_response.json()
-    # Should have an error about version mismatch
+    # Should have an error about timestamp mismatch
     assert "errors" in update2_data
     error_message = update2_data["errors"][0]["message"]
-    assert "version mismatch" in error_message.lower() or "stale" in error_message.lower()
-    assert "expected 1" in error_message.lower()
-    assert "current is 2" in error_message.lower()
+    assert "timestamp mismatch" in error_message.lower() or "stale" in error_message.lower()
 
-    # Third update with CORRECT version (should succeed)
+    # Third update with CORRECT timestamp (should succeed)
     update3_variables = {
         "input": {
             "trialId": trial_id,
             "name": "Fresh Update",
-            "expectedVersion": new_version,  # Using current version
+            "expectedUpdatedAt": new_updated_at,  # Using current timestamp
         }
     }
 
@@ -368,7 +366,6 @@ def test_stale_data_protection_basic(test_client):
     update3_data = update3_response.json()
     assert "errors" not in update3_data
     assert update3_data["data"]["updateTrialMetadata"]["name"] == "Fresh Update"
-    assert update3_data["data"]["updateTrialMetadata"]["version"] == 3
 
 
 @pytest.mark.restate_e2e
@@ -388,7 +385,7 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
         mutation CreateTrial($input: CreateTrialInput!) {
             createTrial(input: $input) {
                 id
-                version
+                updatedAt
             }
         }
     """
@@ -406,7 +403,7 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
     data = response.json()
     assert "errors" not in data
     trial_id = data["data"]["createTrial"]["id"]
-    initial_version = data["data"]["createTrial"]["version"]
+    initial_updated_at = data["data"]["createTrial"]["updatedAt"]
 
     # First update via VO (should succeed)
     update_mutation = """
@@ -414,7 +411,7 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
             updateTrialMetadataViaVo(input: $input) {
                 id
                 name
-                version
+                updatedAt
             }
         }
     """
@@ -427,7 +424,7 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
                 "input": {
                     "trialId": trial_id,
                     "name": "VO Update 1",
-                    "expectedVersion": initial_version,
+                    "expectedUpdatedAt": initial_updated_at,
                 }
             },
         },
@@ -437,10 +434,10 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
 
     data1 = response1.json()
     assert "errors" not in data1
-    new_version = data1["data"]["updateTrialMetadataViaVo"]["version"]
-    assert new_version == 2
+    new_updated_at = data1["data"]["updateTrialMetadataViaVo"]["updatedAt"]
+    assert new_updated_at != initial_updated_at  # Timestamp should have changed
 
-    # Second update via VO with stale version (should fail)
+    # Second update via VO with stale timestamp (should fail)
     response2 = httpx.post(
         "http://localhost:8000/graphql",
         json={
@@ -449,7 +446,7 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
                 "input": {
                     "trialId": trial_id,
                     "name": "VO Stale Update",
-                    "expectedVersion": initial_version,  # Stale!
+                    "expectedUpdatedAt": initial_updated_at,  # Stale!
                 }
             },
         },
@@ -458,12 +455,12 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
     assert response2.status_code == 200
 
     data2 = response2.json()
-    # Should have error about version mismatch
+    # Should have error about timestamp mismatch
     assert "errors" in data2
     error_message = data2["errors"][0]["message"]
-    assert "version mismatch" in error_message.lower() or "stale" in error_message.lower()
+    assert "timestamp mismatch" in error_message.lower() or "stale" in error_message.lower()
 
-    # Third update with correct version (should succeed)
+    # Third update with correct timestamp (should succeed)
     response3 = httpx.post(
         "http://localhost:8000/graphql",
         json={
@@ -472,7 +469,7 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
                 "input": {
                     "trialId": trial_id,
                     "name": "VO Fresh Update",
-                    "expectedVersion": new_version,  # Fresh!
+                    "expectedUpdatedAt": new_updated_at,  # Fresh!
                 }
             },
         },
@@ -482,4 +479,4 @@ def test_stale_data_protection_via_vo(check_restate_running, check_api_running):
 
     data3 = response3.json()
     assert "errors" not in data3
-    assert data3["data"]["updateTrialMetadataViaVo"]["version"] == 3
+    assert data3["data"]["updateTrialMetadataViaVo"]["updatedAt"] != initial_updated_at  # Changed again

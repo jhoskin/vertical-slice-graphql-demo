@@ -46,6 +46,7 @@ def get_audit_log_handler(
             entity_id=log.entity_id,
             payload_json=log.payload_json,
             created_at=log.created_at,
+            updated_at=log.updated_at,
         )
         for log in logs
     ]

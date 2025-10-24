@@ -18,7 +18,7 @@ class TrialNotFoundError(Exception):
     pass
 
 
-def get_trial_handler(session: Session, trial_id: int) -> TrialDetail:
+def get_trial_handler(session: Session, trial_id: str) -> TrialDetail:
     """
     Get detailed trial information.
 
@@ -27,7 +27,7 @@ def get_trial_handler(session: Session, trial_id: int) -> TrialDetail:
 
     Args:
         session: Database session
-        trial_id: ID of trial to retrieve
+        trial_id: UUID string of trial to retrieve
 
     Returns:
         Detailed trial information
@@ -75,6 +75,7 @@ def get_trial_handler(session: Session, trial_id: int) -> TrialDetail:
             version=latest_protocol.version,
             notes=latest_protocol.notes,
             created_at=latest_protocol.created_at,
+            updated_at=latest_protocol.updated_at,
         )
 
     return TrialDetail(
@@ -83,6 +84,7 @@ def get_trial_handler(session: Session, trial_id: int) -> TrialDetail:
         phase=trial.phase,
         status=trial.status,
         created_at=trial.created_at,
+        updated_at=trial.updated_at,
         sites=sites,
         latest_protocol=protocol_info,
     )

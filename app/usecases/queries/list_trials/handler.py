@@ -65,6 +65,7 @@ def list_trials_handler(session: Session, input_data: ListTrialsInput) -> Trials
                 phase=trial.phase,
                 status=trial.status,
                 created_at=trial.created_at,
+                updated_at=trial.updated_at,
                 site_count=site_count,
             )
         )

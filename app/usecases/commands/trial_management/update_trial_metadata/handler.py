@@ -30,14 +30,14 @@ def update_trial_metadata_handler(
 
     Args:
         session: Database session
-        input_data: Update input with optional name, phase, and expected_version
+        input_data: Update input with optional name, phase, and expected_updated_at
 
     Returns:
         Updated trial data with change summary
 
     Raises:
         TrialNotFoundError: If trial doesn't exist
-        StaleDataError: If expected_version doesn't match current version
+        StaleDataError: If expected_updated_at doesn't match current updated_at
         ValidationError: If phase or phase transition is invalid
     """
     # Fetch trial
@@ -45,12 +45,13 @@ def update_trial_metadata_handler(
     if not trial:
         raise TrialNotFoundError(f"Trial with id {input_data.trial_id} not found")
 
-    # Check version if provided (optimistic locking)
-    if input_data.expected_version is not None:
-        if trial.version != input_data.expected_version:
+    # Check timestamp if provided (optimistic locking)
+    if input_data.expected_updated_at is not None:
+        # Compare timestamps - SQLite stores with microsecond precision
+        if trial.updated_at != input_data.expected_updated_at:
             raise StaleDataError(
-                f"Trial version mismatch: expected {input_data.expected_version}, "
-                f"current is {trial.version}. Please refresh and try again."
+                f"Trial timestamp mismatch: expected {input_data.expected_updated_at.isoformat()}, "
+                f"current is {trial.updated_at.isoformat()}. Please refresh and try again."
             )
 
     # Track changes
@@ -74,11 +75,11 @@ def update_trial_metadata_handler(
         trial.phase = input_data.phase
         changes.append(f"phase: '{old_phase}' -> '{trial.phase}'")
 
-    # Increment version on any change
-    if changes:
-        trial.version += 1
-
+    # Flush changes to database
     session.flush()
+
+    # Refresh to get the updated_at value set by the database trigger
+    session.refresh(trial)
 
     # Format changes summary
     changes_summary = "; ".join(changes) if changes else "no changes"
@@ -88,7 +89,7 @@ def update_trial_metadata_handler(
         name=trial.name,
         phase=trial.phase,
         status=trial.status,
-        version=trial.version,
+        updated_at=trial.updated_at,
         created_at=trial.created_at,
         changes=changes_summary,
     )

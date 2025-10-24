@@ -9,12 +9,12 @@ from app.usecases.queries.get_trial.types import TrialDetail
 
 
 @strawberry.field
-def trial(id: int) -> TrialDetail:
+def trial(id: str) -> TrialDetail:
     """
     GraphQL query to get trial by ID.
 
     Args:
-        id: Trial ID
+        id: Trial UUID string
 
     Returns:
         Detailed trial information

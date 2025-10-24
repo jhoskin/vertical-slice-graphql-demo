@@ -42,9 +42,9 @@ class CreateTrialInput:
 @dataclass
 class CreateTrialResponse:
     """Response from creating a trial."""
-    id: int
+    id: str
     name: str
     phase: str
     status: str
-    version: int
     created_at: datetime
+    updated_at: datetime

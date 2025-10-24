@@ -22,11 +22,12 @@ class ListTrialsInput:
 @dataclass
 class TrialSummary:
     """Summary information for a trial in a list."""
-    id: int
+    id: str
     name: str
     phase: str
     status: str
     created_at: datetime
+    updated_at: datetime
     site_count: int  # Number of sites linked to trial
 
 

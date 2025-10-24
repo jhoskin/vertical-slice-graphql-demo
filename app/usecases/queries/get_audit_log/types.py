@@ -20,13 +20,14 @@ class GetAuditLogInput:
 @dataclass
 class AuditEntry:
     """Audit log entry."""
-    id: int
+    id: str
     user: str
     action: str
     entity: str
     entity_id: str
     payload_json: Optional[str]
     created_at: datetime
+    updated_at: datetime
 
 
 @strawberry.type

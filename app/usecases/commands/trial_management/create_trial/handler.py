@@ -45,6 +45,6 @@ def create_trial_handler(session: Session, input_data: CreateTrialInputModel) ->
         name=trial.name,
         phase=trial.phase,
         status=trial.status,
-        version=trial.version,
         created_at=trial.created_at,
+        updated_at=trial.updated_at,
     )

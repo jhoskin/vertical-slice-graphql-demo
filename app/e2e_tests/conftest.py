@@ -38,6 +38,25 @@ def test_client():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
+    # Create triggers for auto-updating updated_at column (SQLite only)
+    from sqlalchemy import text
+    tables = ["trials", "sites", "trial_sites", "protocol_versions", "audit_logs"]
+    with engine.connect() as conn:
+        for table in tables:
+            # Drop trigger if it exists
+            conn.execute(text(f"DROP TRIGGER IF EXISTS update_{table}_timestamp"))
+            # Create AFTER UPDATE trigger
+            trigger_sql = f"""
+            CREATE TRIGGER update_{table}_timestamp
+            AFTER UPDATE ON {table}
+            FOR EACH ROW
+            BEGIN
+                UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+            END;
+            """
+            conn.execute(text(trigger_sql))
+        conn.commit()
+
     # Update the app's session engine temporarily
     from app.infrastructure.database import session as session_module
     original_engine = session_module.engine

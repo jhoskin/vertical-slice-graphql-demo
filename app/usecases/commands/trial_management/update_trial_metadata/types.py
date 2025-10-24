@@ -12,16 +12,16 @@ from strawberry.experimental.pydantic import input as pydantic_input
 
 class UpdateTrialMetadataInputModel(BaseModel):
     """Pydantic model for update trial metadata with validation."""
-    trial_id: int
+    trial_id: str
     name: Optional[str] = None
     phase: Optional[str] = None
-    expected_version: Optional[int] = None
+    expected_updated_at: Optional[datetime] = None
 
     @field_validator('trial_id')
     @classmethod
-    def validate_trial_id(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError('trial_id must be positive')
+    def validate_trial_id(cls, v: str) -> str:
+        if not v or len(v.strip()) == 0:
+            raise ValueError('trial_id cannot be empty')
         return v
 
     @field_validator('name')
@@ -29,13 +29,6 @@ class UpdateTrialMetadataInputModel(BaseModel):
     def validate_name(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and len(v.strip()) == 0:
             raise ValueError('name cannot be empty')
-        return v
-
-    @field_validator('expected_version')
-    @classmethod
-    def validate_expected_version(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and v < 1:
-            raise ValueError('expected_version must be >= 1')
         return v
 
 
@@ -50,10 +43,10 @@ class UpdateTrialMetadataInput:
 @dataclass
 class UpdateTrialMetadataResponse:
     """Response from updating trial metadata."""
-    id: int
+    id: str
     name: str
     phase: str
     status: str
-    version: int
+    updated_at: datetime
     created_at: datetime
     changes: str  # Human-readable summary of changes

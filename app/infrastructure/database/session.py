@@ -25,8 +25,33 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db() -> None:
-    """Initialize database by creating all tables."""
+    """Initialize database by creating all tables and triggers."""
     Base.metadata.create_all(bind=engine)
+
+    # Create triggers for auto-updating updated_at column
+    # Only applicable for SQLite databases
+    if "sqlite" in DATABASE_URL:
+        from sqlalchemy import text
+
+        tables = ["trials", "sites", "trial_sites", "protocol_versions", "audit_logs"]
+
+        with engine.connect() as conn:
+            for table in tables:
+                # Drop trigger if it exists (for idempotency)
+                conn.execute(text(f"DROP TRIGGER IF EXISTS update_{table}_timestamp"))
+
+                # Create trigger to update updated_at on any UPDATE
+                trigger_sql = f"""
+                CREATE TRIGGER update_{table}_timestamp
+                AFTER UPDATE ON {table}
+                FOR EACH ROW
+                BEGIN
+                    UPDATE {table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END;
+                """
+                conn.execute(text(trigger_sql))
+
+            conn.commit()
 
 
 def get_session() -> Session:

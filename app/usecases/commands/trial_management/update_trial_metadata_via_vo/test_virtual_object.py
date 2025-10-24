@@ -26,11 +26,12 @@ async def test_update_metadata_success():
 
     # Mock the handler response
     mock_response = MagicMock()
-    mock_response.id = 123
+    mock_response.id = "123"
     mock_response.name = "Updated Trial Name"
     mock_response.phase = "Phase II"
     mock_response.status = "draft"
     mock_response.created_at = datetime(2025, 1, 1, 12, 0, 0)
+    mock_response.updated_at = datetime(2025, 1, 1, 12, 5, 0)
     mock_response.changes = "name: 'Old Name' -> 'Updated Trial Name'; phase: 'Phase I' -> 'Phase II'"
 
     # Patch the handler and session
@@ -49,16 +50,17 @@ async def test_update_metadata_success():
         mock_handler.assert_called_once()
         call_args = mock_handler.call_args[0]
         assert call_args[0] == mock_session
-        assert call_args[1].trial_id == 123
+        assert call_args[1].trial_id == "123"
         assert call_args[1].name == "Updated Trial Name"
         assert call_args[1].phase == "Phase II"
 
         # Verify response
-        assert result["id"] == 123
+        assert result["id"] == "123"
         assert result["name"] == "Updated Trial Name"
         assert result["phase"] == "Phase II"
         assert result["status"] == "draft"
         assert result["created_at"] == "2025-01-01T12:00:00"
+        assert result["updated_at"] == "2025-01-01T12:05:00"
         assert "name" in result["changes"]
         assert "phase" in result["changes"]
 
@@ -72,11 +74,12 @@ async def test_update_metadata_name_only():
     update_data = {"name": "New Name Only"}
 
     mock_response = MagicMock()
-    mock_response.id = 456
+    mock_response.id = "456"
     mock_response.name = "New Name Only"
     mock_response.phase = "Phase I"
     mock_response.status = "active"
     mock_response.created_at = datetime(2025, 1, 1, 12, 0, 0)
+    mock_response.updated_at = datetime(2025, 1, 1, 12, 5, 0)
     mock_response.changes = "name: 'Old Name' -> 'New Name Only'"
 
     with patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.session_scope") as mock_session_scope, \
@@ -106,11 +109,12 @@ async def test_update_metadata_phase_only():
     update_data = {"phase": "Phase III"}
 
     mock_response = MagicMock()
-    mock_response.id = 789
+    mock_response.id = "789"
     mock_response.name = "Existing Name"
     mock_response.phase = "Phase III"
     mock_response.status = "active"
     mock_response.created_at = datetime(2025, 1, 1, 12, 0, 0)
+    mock_response.updated_at = datetime(2025, 1, 1, 12, 5, 0)
     mock_response.changes = "phase: 'Phase II' -> 'Phase III'"
 
     with patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.session_scope") as mock_session_scope, \

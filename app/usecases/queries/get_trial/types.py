@@ -12,7 +12,7 @@ import strawberry
 @dataclass
 class SiteInfo:
     """Site information for trial detail."""
-    id: int
+    id: str
     name: str
     country: str
     link_status: str
@@ -22,20 +22,22 @@ class SiteInfo:
 @dataclass
 class ProtocolInfo:
     """Protocol version information."""
-    id: int
+    id: str
     version: str
     notes: Optional[str]
     created_at: datetime
+    updated_at: datetime
 
 
 @strawberry.type
 @dataclass
 class TrialDetail:
     """Detailed trial information with sites and protocol."""
-    id: int
+    id: str
     name: str
     phase: str
     status: str
     created_at: datetime
+    updated_at: datetime
     sites: list[SiteInfo]
     latest_protocol: Optional[ProtocolInfo]

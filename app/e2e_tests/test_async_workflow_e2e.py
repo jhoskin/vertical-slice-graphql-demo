@@ -161,7 +161,7 @@ def test_async_workflow_full_execution(
 
     # Query the specific trial to check protocol and sites
     get_trial = """
-        query GetTrial($id: Int!) {
+        query GetTrial($id: String!) {
             trial(id: $id) {
                 id
                 name
@@ -268,7 +268,7 @@ def test_async_workflow_with_webhook_callbacks(
 
     # Query the specific trial to check sites
     get_trial = """
-        query GetTrial($id: Int!) {
+        query GetTrial($id: String!) {
             trial(id: $id) {
                 id
                 name
