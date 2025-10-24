@@ -6,11 +6,25 @@ error classification for retry logic. The client is stateless and can be used
 standalone or wrapped with retry mechanisms (e.g., Restate's ctx.run()).
 """
 import logging
+import os
 from typing import Any, Dict, Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+def get_api_url() -> str:
+    """
+    Get the API URL from environment configuration.
+
+    This centralizes API URL configuration so it doesn't need to be
+    passed around or logged in application/workflow code.
+
+    Returns:
+        The configured API URL
+    """
+    return os.getenv("API_URL", "http://localhost:8000")
 
 
 class GraphQLError(Exception):

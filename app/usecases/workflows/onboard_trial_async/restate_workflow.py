@@ -6,20 +6,16 @@ Each step is durably recorded, and the workflow can resume from any point.
 
 GraphQL operations are wrapped with automatic retry logic via the
 infrastructure GraphQL client, which filters terminal vs transient errors.
+
+Progress updates are published via GraphQL mutation to the pub/sub system.
 """
 import logging
-import os
-import uuid
 from datetime import timedelta
 
-import httpx
 from restate import Workflow, WorkflowContext
-from restate.serde import JsonSerde
 
-from app.infrastructure.graphql_client import execute_graphql_mutation
+from app.infrastructure.graphql_client import execute_graphql_mutation, get_api_url
 from app.usecases.workflows.onboard_trial_async.types import (
-    OnboardTrialAsyncInput,
-    OnboardTrialProgressUpdate,
     OnboardTrialStatus,
     TrialData,
     SiteProgress,
@@ -53,6 +49,10 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
     workflow_id = ctx.key()
     logger.info(f"[WORKFLOW {workflow_id}] Starting workflow execution")
 
+    # Capture API URL deterministically at workflow start
+    # This ensures the same URL is used on replay even if env vars change
+    api_url = get_api_url()
+
     # Extract input data
     trial_name = input_data["name"]
     trial_phase = input_data["phase"]
@@ -60,20 +60,18 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
     sites = input_data["sites"]
     logger.info(f"[WORKFLOW {workflow_id}] Input: name={trial_name}, phase={trial_phase}, sites={len(sites)}")
 
-    # API and webhook endpoints
-    # Note: These should be configured based on environment
-    api_url = os.getenv("API_URL", "http://localhost:8000")
-    webhook_url = f"{api_url}/api/workflows/progress"
-    logger.info(f"[WORKFLOW {workflow_id}] API URL: {api_url}")
+    # Track current step for better error reporting
+    current_step = "trial_creation"
 
     try:
         # Step 1: Create trial
         await _send_progress(
             ctx,
-            webhook_url,
             workflow_id,
+            "0_creating_trial",
             OnboardTrialStatus.CREATING_TRIAL,
             "Creating trial...",
+            api_url,
         )
 
         # Add synthetic delay for human observation
@@ -87,7 +85,7 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             return await execute_graphql_mutation(
                 "mutation CreateTrial($input: CreateTrialInput!) { createTrial(input: $input) { id } }",
                 {"input": {"name": trial_name, "phase": trial_phase}},
-                api_url,
+                api_url,  # Use captured URL for determinism
                 log_prefix=f"[WORKFLOW {workflow_id}]"
             )
 
@@ -100,22 +98,25 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
 
         await _send_progress(
             ctx,
-            webhook_url,
             workflow_id,
+            "1_trial_created",
             OnboardTrialStatus.TRIAL_CREATED,
             f"Trial '{trial_name}' created with ID {trial_id}",
+            api_url,
             trial=trial_data,
         )
 
         # Step 2: Add protocol version
+        current_step = "protocol_creation"
         await ctx.sleep(timedelta(seconds=2))
 
         await _send_progress(
             ctx,
-            webhook_url,
             workflow_id,
+            "2_protocol_adding",
             OnboardTrialStatus.PROTOCOL_ADDING,
             f"Adding protocol version {protocol_version}...",
+            api_url,
             trial=trial_data,
         )
 
@@ -129,14 +130,16 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
 
         await _send_progress(
             ctx,
-            webhook_url,
             workflow_id,
+            "3_protocol_added",
             OnboardTrialStatus.PROTOCOL_ADDED,
             f"Protocol version {protocol_version} added to trial",
+            api_url,
             trial=trial_data,
         )
 
         # Step 3: Register sites
+        current_step = "site_registration"
         logger.info(f"[WORKFLOW {workflow_id}] Starting site registration for {len(sites)} sites")
         for i, site in enumerate(sites):
             await ctx.sleep(timedelta(seconds=2))
@@ -149,10 +152,11 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
 
             await _send_progress(
                 ctx,
-                webhook_url,
                 workflow_id,
+                f"4_site_{i}_registering",
                 OnboardTrialStatus.SITE_REGISTERING,
                 f"Registering site {site['name']} ({i+1}/{len(sites)})...",
+                api_url,
                 trial=trial_data,
                 site_progress=site_prog,
             )
@@ -167,10 +171,11 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
 
             await _send_progress(
                 ctx,
-                webhook_url,
                 workflow_id,
+                f"5_site_{i}_registered",
                 OnboardTrialStatus.SITE_REGISTERED,
                 f"Site {site['name']} registered successfully ({i+1}/{len(sites)})",
+                api_url,
                 trial=trial_data,
                 site_progress=site_prog,
             )
@@ -179,10 +184,11 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         logger.info(f"[WORKFLOW {workflow_id}] All steps completed successfully")
         await _send_progress(
             ctx,
-            webhook_url,
             workflow_id,
+            "6_completed",
             OnboardTrialStatus.COMPLETED,
             f"Successfully onboarded trial '{trial_name}' with {len(sites)} sites",
+            api_url,
             trial=trial_data,
         )
 
@@ -195,29 +201,21 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         return result
 
     except Exception as e:
-        # Workflow failed - determine which step failed
+        # Workflow failed - use explicitly tracked current_step for accurate error reporting
         logger.error(f"[WORKFLOW {workflow_id}] Workflow failed with exception: {str(e)}", exc_info=True)
 
-        # Try to provide context about what failed
-        failed_step = "unknown"
-        if "trial_id" not in locals():
-            failed_step = "trial_creation"
-        elif "protocol_result" not in locals():
-            failed_step = "protocol_creation"
-        else:
-            failed_step = "site_registration"
-
         error_details = WorkflowError(
-            failed_step=failed_step,
+            failed_step=current_step,
             error_message=str(e)
         )
 
         await _send_progress(
             ctx,
-            webhook_url,
             workflow_id,
+            "7_failed",
             OnboardTrialStatus.FAILED,
-            f"Workflow failed during {failed_step}: {str(e)}",
+            f"Workflow failed during {current_step}: {str(e)}",
+            api_url,
             error=error_details,
         )
 
@@ -232,59 +230,90 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
 
 async def _send_progress(
     ctx: WorkflowContext,
-    webhook_url: str,
     workflow_id: str,
+    step_key: str,
     status: OnboardTrialStatus,
     message: str,
+    api_url: str,
     trial: TrialData | None = None,
     site_progress: SiteProgress | None = None,
     error: WorkflowError | None = None,
 ) -> None:
     """
-    Send strongly-typed progress update via HTTP POST.
+    Send strongly-typed progress update via GraphQL mutation.
 
-    Sends OnboardTrialProgressUpdate with detailed status information including:
-    - Current workflow status (enum)
-    - Trial entity data (if available)
-    - Site registration progress (if registering sites)
-    - Error details (if workflow failed)
+    Sends progress updates to the pub/sub system via a GraphQL mutation,
+    which then delivers them to subscribers via GraphQL subscription.
 
-    Fire-and-forget implementation - workflow doesn't fail if progress update fails.
-    In production, this could be made durable with ctx.run_typed.
+    Uses the shared GraphQL client for consistency and automatic retry logic.
+
+    Wrapped with ctx.run() for durable execution - if workflow restarts,
+    progress updates won't be sent multiple times.
+
+    Args:
+        ctx: Restate workflow context
+        workflow_id: Workflow identifier
+        step_key: Unique key for this progress update (ensures idempotency)
+        status: Current workflow status
+        message: Human-readable status message
+        api_url: API endpoint URL (captured deterministically at workflow start)
+        trial: Trial entity data (if available)
+        site_progress: Site registration progress (if applicable)
+        error: Error details (if workflow failed)
     """
-    # Build payload with all available data
-    payload = {
-        "workflow_id": workflow_id,
-        "status": status.value,  # Send enum value
-        "message": message,
+    # Build GraphQL mutation input
+    mutation = """
+        mutation PublishOnboardTrialProgress($input: PublishOnboardTrialProgressInput!) {
+            publishOnboardTrialProgress(input: $input) {
+                success
+                publishedAt
+            }
+        }
+    """
+
+    # Build input variables
+    variables = {
+        "input": {
+            "workflowId": workflow_id,
+            "status": status.value,
+            "message": message,
+        }
     }
 
     # Add optional fields if present
     if trial:
-        payload["trial"] = {
+        variables["input"]["trial"] = {
             "id": trial.id,
             "name": trial.name,
             "phase": trial.phase,
         }
     if site_progress:
-        payload["site_progress"] = {
-            "current_site_index": site_progress.current_site_index,
-            "total_sites": site_progress.total_sites,
-            "site_name": site_progress.site_name,
+        variables["input"]["siteProgress"] = {
+            "currentSiteIndex": site_progress.current_site_index,
+            "totalSites": site_progress.total_sites,
+            "siteName": site_progress.site_name,
         }
     if error:
-        payload["error"] = {
-            "failed_step": error.failed_step,
-            "error_message": error.error_message,
+        variables["input"]["error"] = {
+            "failedStep": error.failed_step,
+            "errorMessage": error.error_message,
         }
 
-    # Send progress update
+    # Define async function for ctx.run() - Restate will durably track this
+    async def publish_progress_mutation():
+        return await execute_graphql_mutation(
+            mutation,
+            variables,
+            api_url,
+            log_prefix=f"[WORKFLOW {workflow_id}]"
+        )
+
+    # Execute with durable tracking using unique step_key
+    # Fire-and-forget: we log but don't fail workflow if progress update fails
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(webhook_url, json=payload)
-    except Exception:
-        # Don't fail workflow if progress update fails
-        pass
+        await ctx.run(f"progress_{step_key}", publish_progress_mutation)
+    except Exception as e:
+        logger.warning(f"[WORKFLOW {workflow_id}] Failed to send progress update: {e}")
 
 
 def _add_protocol(trial_id: int, version: str, trial_name: str) -> dict:

@@ -1,80 +1,84 @@
 """
-Generic in-memory pub/sub for workflow progress updates.
+In-memory pub/sub system for workflow progress updates.
 
-This infrastructure component provides a reusable pub/sub mechanism for any
-async workflow that needs to publish progress updates to subscribers.
+This implementation provides a simple, in-memory message broker for
+workflow-specific real-time updates via GraphQL subscriptions.
 
-Usage:
+Example usage:
     from app.infrastructure.pubsub import workflow_pubsub
 
-    # In workflow: publish updates
+    # Publish an update
     await workflow_pubsub.publish(workflow_id, update_data)
 
-    # In GraphQL subscription: subscribe to updates
+    # Subscribe to updates
     queue = await workflow_pubsub.subscribe(workflow_id)
-    async for update in queue:
-        yield update
-
-Note: This is a simple in-memory implementation suitable for single-instance
-deployments. For production with multiple instances, use Redis pub/sub or similar.
+    update = await queue.get()
 """
 import asyncio
 from collections import defaultdict
-from typing import Any, Dict, Set
+from typing import Any, Dict
+
+from app.usecases.workflows.onboard_trial_async.types import OnboardTrialProgressUpdate
 
 
 class WorkflowPubSub:
     """
-    Generic in-memory pub/sub for workflow progress updates.
+    In-memory pub/sub for workflow progress updates.
 
-    This implementation is workflow-agnostic - it accepts any data type as
-    the update payload. Workflows are responsible for using strongly-typed
-    update objects that subscribers understand.
+    This is a simple implementation suitable for single-server deployments.
+    For multi-server setups, use Redis pub/sub or similar distributed solution.
     """
 
     def __init__(self):
-        self._queues: Dict[str, Set[asyncio.Queue]] = defaultdict(set)
+        """Initialize the pub/sub system."""
+        # workflow_id -> list of subscriber queues
+        self._subscribers: Dict[str, list[asyncio.Queue]] = defaultdict(list)
 
     async def subscribe(self, workflow_id: str) -> asyncio.Queue:
         """
         Subscribe to updates for a specific workflow.
 
         Args:
-            workflow_id: Unique identifier for the workflow instance
+            workflow_id: The workflow to subscribe to
 
         Returns:
-            An asyncio.Queue that will receive all updates for this workflow
+            A queue that will receive OnboardTrialProgressUpdate messages
         """
-        queue = asyncio.Queue()
-        self._queues[workflow_id].add(queue)
+        queue: asyncio.Queue[OnboardTrialProgressUpdate] = asyncio.Queue()
+        self._subscribers[workflow_id].append(queue)
         return queue
 
-    def unsubscribe(self, workflow_id: str, queue: asyncio.Queue):
+    def unsubscribe(self, workflow_id: str, queue: asyncio.Queue) -> None:
         """
-        Unsubscribe from a workflow's updates.
+        Unsubscribe from workflow updates.
 
         Args:
-            workflow_id: Workflow identifier
-            queue: The queue to unsubscribe
+            workflow_id: The workflow to unsubscribe from
+            queue: The queue to remove
         """
-        if workflow_id in self._queues:
-            self._queues[workflow_id].discard(queue)
-            if not self._queues[workflow_id]:
-                del self._queues[workflow_id]
+        if workflow_id in self._subscribers:
+            try:
+                self._subscribers[workflow_id].remove(queue)
+                # Clean up empty subscriber lists
+                if not self._subscribers[workflow_id]:
+                    del self._subscribers[workflow_id]
+            except ValueError:
+                # Queue already removed
+                pass
 
-    async def publish(self, workflow_id: str, update: Any):
+    async def publish(self, workflow_id: str, update: OnboardTrialProgressUpdate) -> None:
         """
         Publish an update to all subscribers of a workflow.
 
         Args:
-            workflow_id: Workflow identifier
-            update: The update data (typically a strongly-typed object)
+            workflow_id: The workflow that has an update
+            update: The progress update to publish
         """
-        if workflow_id in self._queues:
+        if workflow_id in self._subscribers:
             # Send to all subscribers
-            for queue in self._queues[workflow_id]:
+            for queue in self._subscribers[workflow_id]:
                 await queue.put(update)
 
 
-# Global instance - single pub/sub for all workflows
+# Global singleton instance
 workflow_pubsub = WorkflowPubSub()

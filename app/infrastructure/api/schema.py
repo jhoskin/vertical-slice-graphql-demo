@@ -26,6 +26,7 @@ from app.usecases.queries.list_trials.resolver import trials
 # Import workflow resolvers
 from app.usecases.workflows.onboard_trial_async.resolver import (
     start_onboard_trial_async,
+    publish_onboard_trial_progress,
     onboard_trial_async_progress,
 )
 from app.usecases.workflows.onboard_trial_sync.resolver import onboard_trial_sync
@@ -43,6 +44,7 @@ class Mutation:
     # Workflow mutations
     onboard_trial_sync = onboard_trial_sync
     start_onboard_trial_async = start_onboard_trial_async
+    publish_onboard_trial_progress = publish_onboard_trial_progress
 
 
 @strawberry.type

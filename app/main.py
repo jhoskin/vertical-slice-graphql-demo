@@ -14,7 +14,6 @@ from strawberry.fastapi import GraphQLRouter
 
 from app.infrastructure.api.schema import schema
 from app.infrastructure.database.session import init_db
-from app.usecases.workflows.onboard_trial_async.webhook import router as webhook_router
 
 # Import Restate endpoint
 from app.usecases.workflows.onboard_trial_async.restate_workflow import (
@@ -125,9 +124,6 @@ graphql_app = GraphQLRouter(schema)
 
 # Mount GraphQL endpoint
 app.include_router(graphql_app, prefix="/graphql")
-
-# Mount webhook endpoint for Restate workflow callbacks
-app.include_router(webhook_router)
 
 # Create and mount Restate endpoint
 restate_endpoint = Endpoint()

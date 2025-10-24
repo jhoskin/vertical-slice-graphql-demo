@@ -10,6 +10,7 @@ def test_onboard_trial_async_resolver_exists() -> None:
 
     # Verify the resolver functions exist
     assert hasattr(resolver, "start_onboard_trial_async")
+    assert hasattr(resolver, "publish_onboard_trial_progress")
     assert hasattr(resolver, "onboard_trial_async_progress")
 
     # Verify imports work
