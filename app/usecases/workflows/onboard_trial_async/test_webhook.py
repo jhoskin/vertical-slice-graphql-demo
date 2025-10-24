@@ -10,7 +10,7 @@ from app.usecases.workflows.onboard_trial_async.webhook import router
 
 @pytest.mark.asyncio
 async def test_webhook_publishes_to_pubsub():
-    """Test that webhook endpoint publishes to pub/sub."""
+    """Test that webhook endpoint publishes strongly-typed updates to pub/sub."""
     from fastapi import FastAPI
 
     # Create test app with webhook router
@@ -22,7 +22,7 @@ async def test_webhook_publishes_to_pubsub():
     workflow_id = "webhook-test-123"
     queue = await pubsub.subscribe(workflow_id)
 
-    # Send webhook request
+    # Send webhook request with structured payload
     with TestClient(app) as client:
         response = client.post(
             "/api/workflows/progress",
@@ -30,7 +30,11 @@ async def test_webhook_publishes_to_pubsub():
                 "workflow_id": workflow_id,
                 "status": "trial_created",
                 "message": "Trial created",
-                "trial_id": 99,
+                "trial": {
+                    "id": 99,
+                    "name": "Test Trial",
+                    "phase": "Phase I"
+                },
             },
         )
 

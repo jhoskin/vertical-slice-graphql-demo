@@ -3,7 +3,7 @@ GraphQL resolver for asynchronous trial onboarding workflow.
 
 Provides:
 - Mutation to start the workflow (returns immediately)
-- Subscription to receive progress updates
+- Subscription to receive workflow-specific progress updates
 """
 import asyncio
 import os
@@ -17,7 +17,8 @@ from app.usecases.workflows.onboard_trial_async.pubsub import workflow_pubsub
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialAsyncInput,
     OnboardTrialAsyncResponse,
-    WorkflowProgressUpdate,
+    OnboardTrialProgressUpdate,
+    OnboardTrialStatus,
 )
 
 
@@ -65,20 +66,24 @@ async def start_onboard_trial_async(
 
 
 @strawberry.subscription
-async def workflow_progress(
+async def onboard_trial_async_progress(
     workflow_id: str,
-) -> AsyncGenerator[WorkflowProgressUpdate, None]:
+) -> AsyncGenerator[OnboardTrialProgressUpdate, None]:
     """
-    GraphQL subscription to receive workflow progress updates.
+    GraphQL subscription for trial onboarding workflow progress.
 
     Subscribe with the workflow ID received from 'startOnboardTrialAsync'
-    mutation. Updates are streamed in real-time as the workflow progresses.
+    mutation. Delivers strongly-typed progress updates including:
+    - Workflow status (creating_trial, trial_created, etc.)
+    - Trial entity data once created
+    - Site registration progress with details
+    - Error information if workflow fails
 
     Args:
         workflow_id: The workflow ID to subscribe to
 
     Yields:
-        Progress updates from the workflow
+        OnboardTrialProgressUpdate: Detailed progress updates from the workflow
     """
     # Subscribe to the workflow's updates
     queue = await workflow_pubsub.subscribe(workflow_id)
@@ -92,7 +97,7 @@ async def workflow_progress(
             yield update
 
             # If workflow completed or failed, stop
-            if update.status in ("completed", "failed"):
+            if update.status in (OnboardTrialStatus.COMPLETED, OnboardTrialStatus.FAILED):
                 break
 
     except asyncio.CancelledError:

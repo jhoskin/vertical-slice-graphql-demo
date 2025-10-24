@@ -26,7 +26,7 @@ from app.usecases.queries.list_trials.resolver import trials
 # Import workflow resolvers
 from app.usecases.workflows.onboard_trial_async.resolver import (
     start_onboard_trial_async,
-    workflow_progress,
+    onboard_trial_async_progress,
 )
 from app.usecases.workflows.onboard_trial_sync.resolver import onboard_trial_sync
 
@@ -61,9 +61,9 @@ class Query:
 
 @strawberry.type
 class Subscription:
-    """Root subscription type - real-time updates."""
+    """Root subscription type - workflow-specific real-time updates."""
 
-    workflow_progress = workflow_progress
+    onboard_trial_async_progress = onboard_trial_async_progress
 
 
 # Build the schema

@@ -12,7 +12,11 @@ from fastapi import FastAPI
 from starlette.testclient import TestClient
 
 from app.usecases.workflows.onboard_trial_async.pubsub import workflow_pubsub
-from app.usecases.workflows.onboard_trial_async.types import WorkflowProgressUpdate
+from app.usecases.workflows.onboard_trial_async.types import (
+    OnboardTrialProgressUpdate,
+    OnboardTrialStatus,
+    TrialData,
+)
 from app.usecases.workflows.onboard_trial_async.webhook import router as webhook_router
 
 
@@ -74,14 +78,18 @@ def test_start_async_workflow_returns_workflow_id(
 
 
 def test_webhook_receives_progress(webhook_client: TestClient):
-    """Test that webhook endpoint receives and processes progress updates."""
+    """Test that webhook endpoint receives and processes strongly-typed progress updates."""
     workflow_id = "test-webhook-123"
 
     payload = {
         "workflow_id": workflow_id,
         "status": "trial_created",
         "message": "Trial created successfully",
-        "trial_id": 42,
+        "trial": {
+            "id": 42,
+            "name": "Test Trial",
+            "phase": "Phase I"
+        },
     }
 
     response = webhook_client.post("/api/workflows/progress", json=payload)
@@ -92,7 +100,7 @@ def test_webhook_receives_progress(webhook_client: TestClient):
 
 @pytest.mark.asyncio
 async def test_webhook_publishes_to_subscriptions(webhook_client: TestClient):
-    """Test that webhook publishes updates to pub/sub for subscriptions."""
+    """Test that webhook publishes strongly-typed updates to pub/sub for subscriptions."""
     workflow_id = "test-pubsub-webhook-456"
 
     # Subscribe before sending webhook
@@ -104,7 +112,11 @@ async def test_webhook_publishes_to_subscriptions(webhook_client: TestClient):
             "workflow_id": workflow_id,
             "status": "protocol_added",
             "message": "Protocol added",
-            "trial_id": 99,
+            "trial": {
+                "id": 99,
+                "name": "Test Trial",
+                "phase": "Phase I"
+            },
         }
 
         response = webhook_client.post("/api/workflows/progress", json=payload)
@@ -118,8 +130,8 @@ async def test_webhook_publishes_to_subscriptions(webhook_client: TestClient):
         assert not queue.empty()
         update = await queue.get()
         assert update.workflow_id == workflow_id
-        assert update.status == "protocol_added"
-        assert update.trial_id == 99
+        assert update.status == OnboardTrialStatus.PROTOCOL_ADDED
+        assert update.trial.id == 99
 
     finally:
         workflow_pubsub.unsubscribe(workflow_id, queue)
@@ -133,13 +145,15 @@ async def test_multiple_progress_updates(webhook_client: TestClient):
     # Subscribe
     queue = await workflow_pubsub.subscribe(workflow_id)
 
+    trial_data = {"id": 123, "name": "Test Trial", "phase": "Phase I"}
+
     try:
         # Send multiple webhook requests simulating workflow progress
         updates = [
-            {"workflow_id": workflow_id, "status": "trial_creating", "message": "Creating trial..."},
-            {"workflow_id": workflow_id, "status": "trial_created", "message": "Trial created", "trial_id": 123},
-            {"workflow_id": workflow_id, "status": "protocol_adding", "message": "Adding protocol...", "trial_id": 123},
-            {"workflow_id": workflow_id, "status": "completed", "message": "Workflow completed", "trial_id": 123},
+            {"workflow_id": workflow_id, "status": "creating_trial", "message": "Creating trial..."},
+            {"workflow_id": workflow_id, "status": "trial_created", "message": "Trial created", "trial": trial_data},
+            {"workflow_id": workflow_id, "status": "protocol_adding", "message": "Adding protocol...", "trial": trial_data},
+            {"workflow_id": workflow_id, "status": "completed", "message": "Workflow completed", "trial": trial_data},
         ]
 
         for update_payload in updates:
@@ -154,10 +168,10 @@ async def test_multiple_progress_updates(webhook_client: TestClient):
             received_updates.append(update.status)
 
         assert len(received_updates) == 4
-        assert "trial_creating" in received_updates
-        assert "trial_created" in received_updates
-        assert "protocol_adding" in received_updates
-        assert "completed" in received_updates
+        assert OnboardTrialStatus.CREATING_TRIAL in received_updates
+        assert OnboardTrialStatus.TRIAL_CREATED in received_updates
+        assert OnboardTrialStatus.PROTOCOL_ADDING in received_updates
+        assert OnboardTrialStatus.COMPLETED in received_updates
 
     finally:
         workflow_pubsub.unsubscribe(workflow_id, queue)
@@ -179,7 +193,7 @@ async def test_subscription_isolation(webhook_client: TestClient):
             "/api/workflows/progress",
             json={
                 "workflow_id": workflow_id_1,
-                "status": "started",
+                "status": "creating_trial",
                 "message": "Workflow 1 started",
             },
         )
@@ -200,30 +214,32 @@ async def test_subscription_isolation(webhook_client: TestClient):
 
 @pytest.mark.asyncio
 async def test_workflow_progress_update_structure():
-    """Test the structure of workflow progress updates."""
-    update = WorkflowProgressUpdate(
+    """Test the structure of strongly-typed workflow progress updates."""
+    trial_data = TrialData(id=42, name="Test Trial", phase="Phase I")
+    update = OnboardTrialProgressUpdate(
         workflow_id="test-123",
-        status="trial_created",
+        status=OnboardTrialStatus.TRIAL_CREATED,
         message="Trial created successfully",
-        trial_id=42,
+        trial=trial_data,
     )
 
     assert update.workflow_id == "test-123"
-    assert update.status == "trial_created"
+    assert update.status == OnboardTrialStatus.TRIAL_CREATED
     assert update.message == "Trial created successfully"
-    assert update.trial_id == 42
+    assert update.trial.id == 42
+    assert update.trial.name == "Test Trial"
 
 
 @pytest.mark.asyncio
 async def test_workflow_progress_without_trial_id():
-    """Test workflow progress update without trial_id (early stages)."""
-    update = WorkflowProgressUpdate(
+    """Test workflow progress update without trial data (early stages)."""
+    update = OnboardTrialProgressUpdate(
         workflow_id="test-456",
-        status="trial_creating",
+        status=OnboardTrialStatus.CREATING_TRIAL,
         message="Creating trial...",
     )
 
     assert update.workflow_id == "test-456"
-    assert update.status == "trial_creating"
+    assert update.status == OnboardTrialStatus.CREATING_TRIAL
     assert update.message == "Creating trial..."
-    assert update.trial_id is None
+    assert update.trial is None

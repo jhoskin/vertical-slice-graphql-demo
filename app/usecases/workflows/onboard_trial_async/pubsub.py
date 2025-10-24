@@ -1,14 +1,14 @@
 """
 Simple in-memory pub/sub for workflow progress updates.
 
-This allows the Restate workflow to publish progress updates
+This allows the Restate workflow to publish strongly-typed progress updates
 that GraphQL subscriptions can consume.
 """
 import asyncio
 from collections import defaultdict
 from typing import Dict, Set
 
-from app.usecases.workflows.onboard_trial_async.types import WorkflowProgressUpdate
+from app.usecases.workflows.onboard_trial_async.types import OnboardTrialProgressUpdate
 
 
 class WorkflowPubSub:
@@ -35,8 +35,8 @@ class WorkflowPubSub:
             if not self._queues[workflow_id]:
                 del self._queues[workflow_id]
 
-    async def publish(self, update: WorkflowProgressUpdate):
-        """Publish an update to all subscribers of a workflow."""
+    async def publish(self, update: OnboardTrialProgressUpdate):
+        """Publish a strongly-typed progress update to all subscribers of a workflow."""
         workflow_id = update.workflow_id
         if workflow_id in self._queues:
             # Send to all subscribers

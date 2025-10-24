@@ -15,7 +15,11 @@ from restate.serde import JsonSerde
 
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialAsyncInput,
-    WorkflowProgressUpdate,
+    OnboardTrialProgressUpdate,
+    OnboardTrialStatus,
+    TrialData,
+    SiteProgress,
+    WorkflowError,
 )
 
 # Configure logging
@@ -64,7 +68,7 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             ctx,
             webhook_url,
             workflow_id,
-            "trial_creating",
+            OnboardTrialStatus.CREATING_TRIAL,
             "Creating trial...",
         )
 
@@ -102,13 +106,16 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         trial_id = trial_result["id"]
         logger.info(f"[WORKFLOW {workflow_id}] Trial created successfully with ID: {trial_id}")
 
+        # Create trial data structure for progress updates
+        trial_data = TrialData(id=trial_id, name=trial_name, phase=trial_phase)
+
         await _send_progress(
             ctx,
             webhook_url,
             workflow_id,
-            "trial_created",
-            f"Trial created with ID {trial_id}",
-            trial_id,
+            OnboardTrialStatus.TRIAL_CREATED,
+            f"Trial '{trial_name}' created with ID {trial_id}",
+            trial=trial_data,
         )
 
         # Step 2: Add protocol version
@@ -118,9 +125,9 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             ctx,
             webhook_url,
             workflow_id,
-            "protocol_adding",
-            "Adding protocol version...",
-            trial_id,
+            OnboardTrialStatus.PROTOCOL_ADDING,
+            f"Adding protocol version {protocol_version}...",
+            trial=trial_data,
         )
 
         # Add protocol directly to database (not via GraphQL since no mutation exists)
@@ -132,9 +139,9 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             ctx,
             webhook_url,
             workflow_id,
-            "protocol_added",
-            f"Protocol {protocol_version} added",
-            trial_id,
+            OnboardTrialStatus.PROTOCOL_ADDED,
+            f"Protocol version {protocol_version} added to trial",
+            trial=trial_data,
         )
 
         # Step 3: Register sites
@@ -142,13 +149,20 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         for i, site in enumerate(sites):
             await ctx.sleep(timedelta(seconds=2))
 
+            site_prog = SiteProgress(
+                current_site_index=i + 1,
+                total_sites=len(sites),
+                site_name=site['name']
+            )
+
             await _send_progress(
                 ctx,
                 webhook_url,
                 workflow_id,
-                "site_registering",
-                f"Registering site {site['name']}...",
-                trial_id,
+                OnboardTrialStatus.SITE_REGISTERING,
+                f"Registering site {site['name']} ({i+1}/{len(sites)})...",
+                trial=trial_data,
+                site_progress=site_prog,
             )
 
             # Register site directly
@@ -160,9 +174,10 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
                 ctx,
                 webhook_url,
                 workflow_id,
-                "site_registered",
-                f"Site {site['name']} registered",
-                trial_id,
+                OnboardTrialStatus.SITE_REGISTERED,
+                f"Site {site['name']} registered successfully ({i+1}/{len(sites)})",
+                trial=trial_data,
+                site_progress=site_prog,
             )
 
         # All steps completed
@@ -171,9 +186,9 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             ctx,
             webhook_url,
             workflow_id,
-            "completed",
+            OnboardTrialStatus.COMPLETED,
             f"Successfully onboarded trial '{trial_name}' with {len(sites)} sites",
-            trial_id,
+            trial=trial_data,
         )
 
         result = {
@@ -185,14 +200,30 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         return result
 
     except Exception as e:
-        # Workflow failed
+        # Workflow failed - determine which step failed
         logger.error(f"[WORKFLOW {workflow_id}] Workflow failed with exception: {str(e)}", exc_info=True)
+
+        # Try to provide context about what failed
+        failed_step = "unknown"
+        if "trial_id" not in locals():
+            failed_step = "trial_creation"
+        elif "protocol_result" not in locals():
+            failed_step = "protocol_creation"
+        else:
+            failed_step = "site_registration"
+
+        error_details = WorkflowError(
+            failed_step=failed_step,
+            error_message=str(e)
+        )
+
         await _send_progress(
             ctx,
             webhook_url,
             workflow_id,
-            "failed",
-            f"Workflow failed: {str(e)}",
+            OnboardTrialStatus.FAILED,
+            f"Workflow failed during {failed_step}: {str(e)}",
+            error=error_details,
         )
 
         error_result = {
@@ -208,30 +239,54 @@ async def _send_progress(
     ctx: WorkflowContext,
     webhook_url: str,
     workflow_id: str,
-    status: str,
+    status: OnboardTrialStatus,
     message: str,
-    trial_id: int | None = None,
+    trial: TrialData | None = None,
+    site_progress: SiteProgress | None = None,
+    error: WorkflowError | None = None,
 ) -> None:
     """
-    Durably send progress update via HTTP POST.
+    Send strongly-typed progress update via HTTP POST.
 
-    This uses ctx.run_typed to ensure the HTTP call is durable - if it fails,
-    Restate will retry it. Once it succeeds, it won't be retried on replay.
+    Sends OnboardTrialProgressUpdate with detailed status information including:
+    - Current workflow status (enum)
+    - Trial entity data (if available)
+    - Site registration progress (if registering sites)
+    - Error details (if workflow failed)
+
+    Fire-and-forget implementation - workflow doesn't fail if progress update fails.
+    In production, this could be made durable with ctx.run_typed.
     """
+    # Build payload with all available data
+    payload = {
+        "workflow_id": workflow_id,
+        "status": status.value,  # Send enum value
+        "message": message,
+    }
 
-    # Send progress update (fire-and-forget for simplicity)
-    # In production, this could be made durable with ctx.run_typed
+    # Add optional fields if present
+    if trial:
+        payload["trial"] = {
+            "id": trial.id,
+            "name": trial.name,
+            "phase": trial.phase,
+        }
+    if site_progress:
+        payload["site_progress"] = {
+            "current_site_index": site_progress.current_site_index,
+            "total_sites": site_progress.total_sites,
+            "site_name": site_progress.site_name,
+        }
+    if error:
+        payload["error"] = {
+            "failed_step": error.failed_step,
+            "error_message": error.error_message,
+        }
+
+    # Send progress update
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(
-                webhook_url,
-                json={
-                    "workflow_id": workflow_id,
-                    "status": status,
-                    "message": message,
-                    "trial_id": trial_id,
-                },
-            )
+            await client.post(webhook_url, json=payload)
     except Exception:
         # Don't fail workflow if progress update fails
         pass
