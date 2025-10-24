@@ -135,9 +135,12 @@ app/
 ├── e2e_tests/             # End-to-end integration tests (NOT unit tests)
 │   ├── conftest.py
 │   ├── test_trial_lifecycle.py
-│   └── test_site_registration.py
-├── main.py
-└── restate_service.py     # Restate workflow service endpoint
+│   ├── test_site_registration.py
+│   ├── test_sync_saga_workflow.py
+│   ├── test_async_workflow_integration.py
+│   ├── test_async_workflow_e2e.py  # Requires Restate running
+│   └── test_audit_trail.py
+└── main.py                # Main app with GraphQL + Restate endpoint
 ```
 
 **Key Principles:**
@@ -407,41 +410,35 @@ Run: `uv run python -m app.infrastructure.database.seed`
 
 ## Docker + Restate Setup
 
-The async workflow requires Restate runtime. Use Docker Compose for local development:
+The async workflow requires Restate runtime for durable execution.
+
+### Architecture
+- **Single App Service**: Runs locally, hosts both GraphQL API and Restate workflow endpoint
+- **Restate Container**: Official Restate Docker image for durable execution engine
+- **SQLite Database**: Local file, managed by the app
+
+### Quick Start
 
 ```bash
-# Start all services (Restate, API, Restate service endpoint)
-docker-compose up --build
+# Terminal 1: Start Restate container
+docker-compose up
 
-# Services:
-# - Restate server: http://localhost:8080
-# - Restate admin: http://localhost:9070
-# - GraphQL API: http://localhost:8000/graphql
-# - Restate workflow endpoint: http://localhost:9080
+# Terminal 2: Start app (serves GraphQL + Restate workflows)
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Terminal 3: Register workflow with Restate (one-time setup)
+docker exec vertical-slice-graphql-demo-restate-1 \
+  restate deployments register --yes --use-http1.1 \
+  http://host.docker.internal:8000/restate
 ```
 
-The compose setup:
-1. **restate**: Restate server for durable execution
-2. **api**: Main FastAPI GraphQL API
-3. **restate-service**: Serves Restate workflow handlers
-4. **restate-register**: Auto-registers workflow endpoint with Restate
+**Services:**
+- Restate server: `http://localhost:8080` (workflow invocation)
+- Restate admin: `http://localhost:9070` (management UI)
+- GraphQL API: `http://localhost:8000/graphql`
+- Restate endpoint: `http://localhost:8000/restate` (workflow service)
 
-For local development without Docker:
-```bash
-# Terminal 1: Start Restate server
-docker run --name restate_dev --rm -p 8080:8080 -p 9070:9070 restatedev/restate:latest
-
-# Terminal 2: Start main API
-uv run uvicorn app.main:app --reload --port 8000
-
-# Terminal 3: Start Restate service endpoint
-uv run uvicorn app.restate_service:app --reload --port 9080
-
-# Terminal 4: Register workflow with Restate
-curl -X POST http://localhost:9070/endpoints \
-  -H 'Content-Type: application/json' \
-  -d '{"uri": "http://localhost:9080"}'
-```
+**Note**: The app serves both the GraphQL API and Restate workflow endpoints on the same port. Restate connects to the `/restate` path to discover and invoke workflows.
 
 ## UV + Runbook
 ```bash
@@ -451,14 +448,26 @@ uv sync
 # Seed database
 uv run python -m app.infrastructure.database.seed
 
-# Run tests
-pytest  # Runs all co-located unit tests
+# Run all tests (excluding Restate E2E)
+pytest
 
-# Serve locally (without Restate)
+# Run Restate E2E tests (requires docker-compose up)
+pytest -m restate_e2e
+
+# Serve locally (sync saga works, async workflow won't)
 uv run uvicorn app.main:app --reload
 
-# Serve with Restate (see Docker setup above)
-docker-compose up --build
+# Serve with Restate for full async workflow support
+# Terminal 1:
+docker-compose up
+
+# Terminal 2:
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Terminal 3 (one-time):
+docker exec vertical-slice-graphql-demo-restate-1 \
+  restate deployments register --yes --use-http1.1 \
+  http://host.docker.internal:8000/restate
 ```
 
 **Dependencies:**

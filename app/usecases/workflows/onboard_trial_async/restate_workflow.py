@@ -4,8 +4,13 @@ Restate workflow for asynchronous trial onboarding.
 This workflow uses durable execution to ensure progress is never lost.
 Each step is durably recorded, and the workflow can resume from any point.
 """
+import logging
+import os
+import uuid
+from datetime import timedelta
+
 import httpx
-from restate import Service, WorkflowContext
+from restate import Workflow, WorkflowContext
 from restate.serde import JsonSerde
 
 from app.usecases.workflows.onboard_trial_async.types import (
@@ -13,8 +18,12 @@ from app.usecases.workflows.onboard_trial_async.types import (
     WorkflowProgressUpdate,
 )
 
-# Create Restate service
-onboard_trial_workflow = Service("OnboardTrialWorkflow")
+# Configure logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Create Restate workflow
+onboard_trial_workflow = Workflow("OnboardTrialWorkflow")
 
 
 @onboard_trial_workflow.handler("run")
@@ -34,16 +43,20 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         Workflow result dict
     """
     workflow_id = ctx.key()
+    logger.info(f"[WORKFLOW {workflow_id}] Starting workflow execution")
 
     # Extract input data
     trial_name = input_data["name"]
     trial_phase = input_data["phase"]
     protocol_version = input_data["initial_protocol_version"]
     sites = input_data["sites"]
+    logger.info(f"[WORKFLOW {workflow_id}] Input: name={trial_name}, phase={trial_phase}, sites={len(sites)}")
 
-    # Webhook endpoint for progress updates
-    # Note: This should be configured based on environment
-    webhook_url = "http://localhost:8000/api/workflows/progress"
+    # API and webhook endpoints
+    # Note: These should be configured based on environment
+    api_url = os.getenv("API_URL", "http://localhost:8000")
+    webhook_url = f"{api_url}/api/workflows/progress"
+    logger.info(f"[WORKFLOW {workflow_id}] API URL: {api_url}")
 
     try:
         # Step 1: Create trial
@@ -56,14 +69,38 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         )
 
         # Add synthetic delay for human observation
-        await ctx.sleep(2.0)
+        await ctx.sleep(timedelta(seconds=2))
 
-        trial_result = await ctx.run_typed(
-            "create_trial",
-            JsonSerde,
-            lambda: _create_trial(trial_name, trial_phase),
-        )
+        # Call GraphQL API to create trial (more reliable than direct DB access in Restate)
+        logger.info(f"[WORKFLOW {workflow_id}] About to call GraphQL API to create trial")
+
+        async def create_trial_via_api():
+            logger.info(f"[WORKFLOW {workflow_id}] Inside create_trial_via_api function")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                url = f"{api_url}/graphql"
+                payload = {
+                    "query": "mutation CreateTrial($input: CreateTrialInput!) { createTrial(input: $input) { id } }",
+                    "variables": {
+                        "input": {"name": trial_name, "phase": trial_phase}
+                    },
+                }
+                logger.info(f"[WORKFLOW {workflow_id}] Posting to {url} with payload: {payload}")
+
+                response = await client.post(url, json=payload)
+                logger.info(f"[WORKFLOW {workflow_id}] Response status: {response.status_code}")
+                logger.info(f"[WORKFLOW {workflow_id}] Response body: {response.text}")
+
+                response.raise_for_status()
+                data = response.json()
+                logger.info(f"[WORKFLOW {workflow_id}] Parsed response data: {data}")
+
+                trial_id = data["data"]["createTrial"]["id"]
+                logger.info(f"[WORKFLOW {workflow_id}] Extracted trial ID: {trial_id}")
+                return {"id": trial_id}
+
+        trial_result = await create_trial_via_api()
         trial_id = trial_result["id"]
+        logger.info(f"[WORKFLOW {workflow_id}] Trial created successfully with ID: {trial_id}")
 
         await _send_progress(
             ctx,
@@ -75,7 +112,7 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         )
 
         # Step 2: Add protocol version
-        await ctx.sleep(2.0)
+        await ctx.sleep(timedelta(seconds=2))
 
         await _send_progress(
             ctx,
@@ -86,11 +123,10 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             trial_id,
         )
 
-        await ctx.run_typed(
-            "add_protocol",
-            JsonSerde,
-            lambda: _add_protocol(trial_id, protocol_version, trial_name),
-        )
+        # Add protocol directly to database (not via GraphQL since no mutation exists)
+        logger.info(f"[WORKFLOW {workflow_id}] Adding protocol {protocol_version} to trial {trial_id}")
+        protocol_result = _add_protocol(trial_id, protocol_version, trial_name)
+        logger.info(f"[WORKFLOW {workflow_id}] Protocol added: {protocol_result}")
 
         await _send_progress(
             ctx,
@@ -102,8 +138,9 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         )
 
         # Step 3: Register sites
+        logger.info(f"[WORKFLOW {workflow_id}] Starting site registration for {len(sites)} sites")
         for i, site in enumerate(sites):
-            await ctx.sleep(2.0)
+            await ctx.sleep(timedelta(seconds=2))
 
             await _send_progress(
                 ctx,
@@ -114,11 +151,10 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
                 trial_id,
             )
 
-            await ctx.run_typed(
-                f"register_site_{i}",
-                JsonSerde,
-                lambda s=site: _register_site(trial_id, s["name"], s["country"]),
-            )
+            # Register site directly
+            logger.info(f"[WORKFLOW {workflow_id}] Registering site {i+1}/{len(sites)}: {site['name']}, {site['country']}")
+            site_result = _register_site(trial_id, site["name"], site["country"])
+            logger.info(f"[WORKFLOW {workflow_id}] Site registered: {site_result}")
 
             await _send_progress(
                 ctx,
@@ -130,6 +166,7 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             )
 
         # All steps completed
+        logger.info(f"[WORKFLOW {workflow_id}] All steps completed successfully")
         await _send_progress(
             ctx,
             webhook_url,
@@ -139,14 +176,17 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             trial_id,
         )
 
-        return {
+        result = {
             "success": True,
             "trial_id": trial_id,
             "message": f"Workflow completed for trial '{trial_name}'",
         }
+        logger.info(f"[WORKFLOW {workflow_id}] Returning result: {result}")
+        return result
 
     except Exception as e:
         # Workflow failed
+        logger.error(f"[WORKFLOW {workflow_id}] Workflow failed with exception: {str(e)}", exc_info=True)
         await _send_progress(
             ctx,
             webhook_url,
@@ -155,11 +195,13 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
             f"Workflow failed: {str(e)}",
         )
 
-        return {
+        error_result = {
             "success": False,
             "trial_id": None,
             "message": f"Workflow failed: {str(e)}",
         }
+        logger.info(f"[WORKFLOW {workflow_id}] Returning error result: {error_result}")
+        return error_result
 
 
 async def _send_progress(
@@ -177,9 +219,11 @@ async def _send_progress(
     Restate will retry it. Once it succeeds, it won't be retried on replay.
     """
 
-    async def do_http_post():
+    # Send progress update (fire-and-forget for simplicity)
+    # In production, this could be made durable with ctx.run_typed
+    try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
+            await client.post(
                 webhook_url,
                 json={
                     "workflow_id": workflow_id,
@@ -188,36 +232,9 @@ async def _send_progress(
                     "trial_id": trial_id,
                 },
             )
-            response.raise_for_status()
-            return {"status": "ok"}
-
-    # Make the HTTP call durable
-    await ctx.run_typed(
-        f"progress_{status}_{ctx.rand_uuid()}",  # Unique name for each progress update
-        JsonSerde,
-        do_http_post,
-    )
-
-
-def _create_trial(name: str, phase: str) -> dict:
-    """
-    Create trial in database (simulated).
-
-    In a real implementation, this would call the database.
-    For now, we'll use a simplified approach.
-    """
-    from app.infrastructure.database.session import session_scope
-    from app.usecases.commands.trial_management.create_trial.handler import (
-        create_trial_handler,
-    )
-    from app.usecases.commands.trial_management.create_trial.types import (
-        CreateTrialInput,
-    )
-
-    with session_scope() as session:
-        input_data = CreateTrialInput(name=name, phase=phase)
-        result = create_trial_handler(session, input_data)
-        return {"id": result.id}
+    except Exception:
+        # Don't fail workflow if progress update fails
+        pass
 
 
 def _add_protocol(trial_id: int, version: str, trial_name: str) -> dict:

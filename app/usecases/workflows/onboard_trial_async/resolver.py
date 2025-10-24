@@ -6,6 +6,7 @@ Provides:
 - Subscription to receive progress updates
 """
 import asyncio
+import os
 import uuid
 from typing import AsyncGenerator
 
@@ -49,8 +50,8 @@ async def start_onboard_trial_async(
     }
 
     # Invoke Restate workflow (non-blocking)
-    # Note: Restate URL should be configured based on environment
-    restate_url = "http://localhost:8080"
+    # Use environment variable for Restate URL (docker: restate:8080, local: localhost:8080)
+    restate_url = os.getenv("RESTATE_URL", "http://localhost:8080")
     async with httpx.AsyncClient(timeout=5.0) as client:
         await client.post(
             f"{restate_url}/OnboardTrialWorkflow/{workflow_id}/run/send",
