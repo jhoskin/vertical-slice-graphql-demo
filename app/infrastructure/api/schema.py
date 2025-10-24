@@ -14,6 +14,9 @@ from app.usecases.commands.trial_management.create_trial.resolver import create_
 from app.usecases.commands.trial_management.update_trial_metadata.resolver import (
     update_trial_metadata,
 )
+from app.usecases.commands.trial_management.update_trial_metadata_via_vo.resolver import (
+    update_trial_metadata_via_vo,
+)
 
 # Import query resolvers
 from app.usecases.queries.get_audit_log.resolver import audit_log
@@ -35,6 +38,7 @@ class Mutation:
     create_trial = create_trial
     register_site_to_trial = register_site_to_trial
     update_trial_metadata = update_trial_metadata
+    update_trial_metadata_via_vo = update_trial_metadata_via_vo
 
     # Workflow mutations
     onboard_trial_sync = onboard_trial_sync

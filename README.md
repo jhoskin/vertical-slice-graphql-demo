@@ -31,29 +31,35 @@ Demonstrate vertical slice architecture in Python with **Command–Query Separat
 - In: `{ name, phase }`
 - Behavior: insert `trials(status='draft')`; write audit.
 - Out: `{ id, name, phase, status }`
+- **Demonstrates**: CQS command pattern with automatic audit logging via decorator. Shows how commands encapsulate mutations with side effects (audit trail).
 
 2) **register_site_to_trial** (multi-table transaction)
 - In: `{ trial_id, site_name, country }`
 - Behavior: upsert `sites`; insert `trial_sites(status='pending')`; single transaction; write one audit record.
 - Out: `{ trial_id, site_id, link_status }`
+- **Demonstrates**: Multi-table atomic transactions with upsert semantics. Shows how a single command can coordinate operations across multiple entities while maintaining ACID properties.
 
 3) **update_trial_metadata**
 - In: `{ trial_id, name?, phase? }`
 - Behavior: update `trials`; compute diff; audit.
 - Out: updated trial.
+- **Demonstrates**: Partial updates with validation and change tracking. Phase transitions validated against business rules, changes logged to audit trail.
 
 ### Queries
 4) **get_trial**
 - In: `{ id }`
 - Out: trial core fields, sites, latest protocol (read-optimized SQL).
+- **Demonstrates**: Read-optimized query with eager loading. Uses SQLAlchemy relationships to efficiently fetch related data in single query, avoiding N+1 problems.
 
 5) **list_trials**
 - In: `{ phase?, status?, search?, limit=20, offset=0 }`
 - Out: `{ items: [TrialSummary], total }`
+- **Demonstrates**: Filtering, pagination, and search patterns. Shows how to build composable query filters while maintaining clean separation between GraphQL and database layers.
 
 6) **get_audit_log**
 - In: `{ entity, entity_id, limit=50 }`
 - Out: `[AuditEntry]`
+- **Demonstrates**: Audit trail querying for compliance. Retrieves chronological history of changes to any entity, supporting regulatory requirements for clinical trials.
 
 ### Workflows
 Two workflow patterns demonstrating different orchestration approaches:
@@ -65,6 +71,7 @@ Two workflow patterns demonstrating different orchestration approaches:
 - Steps: create trial → add protocol → register sites sequentially
 - No state persistence - pure in-memory compensation stack
 - Returns: `{ success, trial_id, message, steps_completed }`
+- **Demonstrates**: Traditional saga pattern with compensation. Shows how to coordinate multi-step business processes with rollback capability when steps fail. Good for fast, synchronous operations.
 
 8) **start_onboard_trial_async** (Async Restate Workflow)
 - In: `{ name, phase, initial_protocol_version, sites: [{name, country}] }`
@@ -74,6 +81,14 @@ Two workflow patterns demonstrating different orchestration approaches:
 - Steps: create trial → add protocol → register sites (with synthetic delays for observation)
 - Durable execution: Workflow state journaled by Restate, survives restarts
 - Returns immediately: `{ workflow_id, message }`
+- **Demonstrates**: Durable async execution with Restate Workflows. Workflow survives application restarts - if the process crashes mid-execution, Restate automatically resumes from last completed step. Progress updates via GraphQL subscriptions provide real-time visibility.
+
+### Concurrency Control
+9) **update_trial_metadata_via_vo** (Virtual Object for Concurrency)
+- In: `{ trial_id, name?, phase? }`
+- Behavior: Routes update through Restate Virtual Object for automatic serialization; validates and persists to database.
+- Out: updated trial (same as #3)
+- **Demonstrates**: Restate Virtual Objects for concurrency protection. All concurrent updates to the same trial_id are automatically serialized by Restate, eliminating need for database-level locking (`SELECT FOR UPDATE`) or optimistic locking. Hybrid pattern: Virtual Object coordinates access, database persists state. Compare with #3 to see traditional vs Virtual Object approach.
 
 ## Folder Structure
 ```
@@ -89,6 +104,9 @@ app/
 ├── core/                  # Cross-cutting utilities
 │   ├── audit.py
 │   └── test_audit.py
+├── domain/                # Restate Virtual Objects and Services
+│   ├── trial_virtual_object.py   # Virtual Object for trial concurrency
+│   └── test_trial_virtual_object.py
 ├── usecases/
 │   ├── commands/
 │   │   ├── trial_management/     # Grouped commands with shared validation
@@ -100,11 +118,16 @@ app/
 │   │   │   │   ├── resolver.py
 │   │   │   │   ├── test_handler.py
 │   │   │   │   └── test_resolver.py
-│   │   │   └── update_trial_metadata/
+│   │   │   ├── update_trial_metadata/
+│   │   │   │   ├── handler.py
+│   │   │   │   ├── types.py
+│   │   │   │   ├── resolver.py
+│   │   │   │   ├── test_handler.py
+│   │   │   │   └── test_resolver.py
+│   │   │   └── update_trial_metadata_via_vo/   # Virtual Object variant
 │   │   │       ├── handler.py
 │   │   │       ├── types.py
 │   │   │       ├── resolver.py
-│   │   │       ├── test_handler.py
 │   │   │       └── test_resolver.py
 │   │   └── register_site_to_trial/
 │   │       ├── handler.py
@@ -139,6 +162,7 @@ app/
 │   ├── test_sync_saga_workflow.py
 │   ├── test_async_workflow_integration.py
 │   ├── test_async_workflow_e2e.py  # Requires Restate running
+│   ├── test_trial_virtual_object_e2e.py  # Virtual Object concurrency tests
 │   └── test_audit_trail.py
 └── main.py                # Main app with GraphQL + Restate endpoint
 ```
@@ -348,6 +372,33 @@ subscription WorkflowProgress($workflowId: String!) {
 }
 ```
 
+### Update Trial via Virtual Object (Concurrency Protection)
+```graphql
+mutation UpdateTrialViaVO($input: UpdateTrialMetadataInput!) {
+  updateTrialMetadataViaVo(input: $input) {
+    id
+    name
+    phase
+    status
+    changes
+    createdAt
+  }
+}
+```
+
+Variables:
+```json
+{
+  "input": {
+    "trialId": 1,
+    "name": "Updated Trial Name",
+    "phase": "Phase II"
+  }
+}
+```
+
+**Note**: This mutation uses Restate Virtual Objects for automatic concurrency protection. Multiple simultaneous updates to the same trial are serialized by Restate, preventing race conditions without database locks. Compare with regular `updateTrialMetadata` mutation to see the difference.
+
 ## Cross-Cutting
 - **Audit**: `app/core/audit.py` provides `@audited(action, entity, id_fn)` to write to `audit_logs` on successful command; failures recorded with error info.
 - **DB**: `app/infrastructure/database/session.py` exposes `SessionLocal()` context helper. Each handler opens and commits its own transaction.
@@ -488,5 +539,6 @@ docker exec vertical-slice-graphql-demo-restate-1 \
 - **Two workflow patterns**:
   - Synchronous saga with in-memory compensation
   - Async Restate workflow with durable execution and GraphQL subscriptions
+- **Concurrency protection** via Restate Virtual Objects (trial updates).
 - Unit tests pass.
 - Shared code minimal and aligned with lightweight vertical-slice guidance.
