@@ -13,7 +13,7 @@ from typing import AsyncGenerator
 import httpx
 import strawberry
 
-from app.usecases.workflows.onboard_trial_async.pubsub import workflow_pubsub
+from app.infrastructure.pubsub import workflow_pubsub
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialAsyncInput,
     OnboardTrialAsyncResponse,

@@ -3,7 +3,7 @@ Unit tests for workflow pub/sub mechanism.
 """
 import pytest
 
-from app.usecases.workflows.onboard_trial_async.pubsub import WorkflowPubSub
+from app.infrastructure.pubsub import WorkflowPubSub
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialProgressUpdate,
     OnboardTrialStatus,
@@ -28,7 +28,7 @@ async def test_subscribe_and_publish():
         message="Trial created successfully",
         trial=trial_data,
     )
-    await pubsub.publish(update)
+    await pubsub.publish(workflow_id, update)
 
     # Should receive the update
     received = await queue.get()
@@ -57,7 +57,7 @@ async def test_multiple_subscribers():
         status=OnboardTrialStatus.COMPLETED,
         message="Workflow completed",
     )
-    await pubsub.publish(update)
+    await pubsub.publish(workflow_id, update)
 
     # Both should receive
     received1 = await queue1.get()
@@ -89,7 +89,7 @@ async def test_unsubscribe():
         status=OnboardTrialStatus.FAILED,
         message="Should not receive this",
     )
-    await pubsub.publish(update)
+    await pubsub.publish(workflow_id, update)
 
     # Queue should be empty (no update received)
     assert queue.empty()
@@ -112,7 +112,7 @@ async def test_isolated_workflows():
         status=OnboardTrialStatus.CREATING_TRIAL,
         message="Workflow 1 started",
     )
-    await pubsub.publish(update1)
+    await pubsub.publish(workflow_id_1, update1)
 
     # Only queue1 should receive
     received1 = await queue1.get()

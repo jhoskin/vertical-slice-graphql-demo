@@ -7,7 +7,7 @@ and publishes strongly-typed progress updates to the GraphQL subscription system
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.usecases.workflows.onboard_trial_async.pubsub import workflow_pubsub
+from app.infrastructure.pubsub import workflow_pubsub
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialProgressUpdate,
     OnboardTrialStatus,
@@ -103,6 +103,6 @@ async def workflow_progress_webhook(payload: ProgressWebhookPayload):
     )
 
     # Publish to all subscribers
-    await workflow_pubsub.publish(update)
+    await workflow_pubsub.publish(payload.workflow_id, update)
 
     return {"status": "ok"}

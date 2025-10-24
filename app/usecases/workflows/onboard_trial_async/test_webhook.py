@@ -4,7 +4,7 @@ Unit tests for workflow webhook endpoint.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.usecases.workflows.onboard_trial_async.pubsub import WorkflowPubSub
+from app.infrastructure.pubsub import WorkflowPubSub
 from app.usecases.workflows.onboard_trial_async.webhook import router
 
 

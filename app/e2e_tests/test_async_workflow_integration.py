@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
-from app.usecases.workflows.onboard_trial_async.pubsub import workflow_pubsub
+from app.infrastructure.pubsub import workflow_pubsub
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialProgressUpdate,
     OnboardTrialStatus,

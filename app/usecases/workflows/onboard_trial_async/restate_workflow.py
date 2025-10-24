@@ -3,6 +3,9 @@ Restate workflow for asynchronous trial onboarding.
 
 This workflow uses durable execution to ensure progress is never lost.
 Each step is durably recorded, and the workflow can resume from any point.
+
+GraphQL operations are wrapped with automatic retry logic via the
+infrastructure GraphQL client, which filters terminal vs transient errors.
 """
 import logging
 import os
@@ -13,6 +16,7 @@ import httpx
 from restate import Workflow, WorkflowContext
 from restate.serde import JsonSerde
 
+from app.infrastructure.graphql_client import execute_graphql_mutation
 from app.usecases.workflows.onboard_trial_async.types import (
     OnboardTrialAsyncInput,
     OnboardTrialProgressUpdate,
@@ -75,35 +79,20 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
         # Add synthetic delay for human observation
         await ctx.sleep(timedelta(seconds=2))
 
-        # Call GraphQL API to create trial (more reliable than direct DB access in Restate)
-        logger.info(f"[WORKFLOW {workflow_id}] About to call GraphQL API to create trial")
+        # Create trial via GraphQL API with automatic retry logic
+        logger.info(f"[WORKFLOW {workflow_id}] Creating trial via GraphQL API")
 
-        async def create_trial_via_api():
-            logger.info(f"[WORKFLOW {workflow_id}] Inside create_trial_via_api function")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                url = f"{api_url}/graphql"
-                payload = {
-                    "query": "mutation CreateTrial($input: CreateTrialInput!) { createTrial(input: $input) { id } }",
-                    "variables": {
-                        "input": {"name": trial_name, "phase": trial_phase}
-                    },
-                }
-                logger.info(f"[WORKFLOW {workflow_id}] Posting to {url} with payload: {payload}")
-
-                response = await client.post(url, json=payload)
-                logger.info(f"[WORKFLOW {workflow_id}] Response status: {response.status_code}")
-                logger.info(f"[WORKFLOW {workflow_id}] Response body: {response.text}")
-
-                response.raise_for_status()
-                data = response.json()
-                logger.info(f"[WORKFLOW {workflow_id}] Parsed response data: {data}")
-
-                trial_id = data["data"]["createTrial"]["id"]
-                logger.info(f"[WORKFLOW {workflow_id}] Extracted trial ID: {trial_id}")
-                return {"id": trial_id}
-
-        trial_result = await create_trial_via_api()
-        trial_id = trial_result["id"]
+        # Wrap GraphQL call with ctx.run() for Restate retry logic
+        trial_result = await ctx.run(
+            "create_trial",
+            lambda: execute_graphql_mutation(
+                "mutation CreateTrial($input: CreateTrialInput!) { createTrial(input: $input) { id } }",
+                {"input": {"name": trial_name, "phase": trial_phase}},
+                api_url,
+                log_prefix=f"[WORKFLOW {workflow_id}]"
+            )
+        )
+        trial_id = trial_result["data"]["createTrial"]["id"]
         logger.info(f"[WORKFLOW {workflow_id}] Trial created successfully with ID: {trial_id}")
 
         # Create trial data structure for progress updates

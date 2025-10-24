@@ -99,8 +99,10 @@ app/
 │   │   ├── session.py
 │   │   ├── seed.py
 │   │   └── test_models.py
-│   └── api/               # GraphQL schema composition
-│       └── schema.py
+│   ├── api/               # GraphQL schema composition
+│   │   └── schema.py
+│   ├── pubsub.py          # Generic workflow pub/sub infrastructure
+│   └── graphql_client.py  # Lightweight GraphQL client with retry logic
 ├── core/                  # Cross-cutting utilities
 │   ├── audit.py
 │   └── test_audit.py
@@ -151,7 +153,6 @@ app/
 │           ├── types.py
 │           ├── resolver.py          # Mutation + subscription
 │           ├── webhook.py           # Webhook for progress callbacks
-│           ├── pubsub.py            # In-memory pub/sub for subscriptions
 │           ├── test_resolver.py
 │           ├── test_pubsub.py
 │           └── test_webhook.py
