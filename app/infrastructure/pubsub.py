@@ -4,10 +4,13 @@ In-memory pub/sub system for workflow progress updates.
 This implementation provides a simple, in-memory message broker for
 workflow-specific real-time updates via GraphQL subscriptions.
 
+This is a generic infrastructure component that works with any message type.
+Each workflow defines its own message types and the pubsub doesn't care.
+
 Example usage:
     from app.infrastructure.pubsub import workflow_pubsub
 
-    # Publish an update
+    # Publish an update (any type)
     await workflow_pubsub.publish(workflow_id, update_data)
 
     # Subscribe to updates
@@ -18,12 +21,14 @@ import asyncio
 from collections import defaultdict
 from typing import Any, Dict
 
-from app.usecases.workflows.onboard_trial_async.types import OnboardTrialProgressUpdate
-
 
 class WorkflowPubSub:
     """
     In-memory pub/sub for workflow progress updates.
+
+    This is a generic infrastructure component that works with any message type.
+    Workflows define their own message types and this pubsub doesn't impose
+    any constraints on them.
 
     This is a simple implementation suitable for single-server deployments.
     For multi-server setups, use Redis pub/sub or similar distributed solution.
@@ -42,9 +47,10 @@ class WorkflowPubSub:
             workflow_id: The workflow to subscribe to
 
         Returns:
-            A queue that will receive OnboardTrialProgressUpdate messages
+            A queue that will receive workflow progress messages.
+            The message type depends on the workflow.
         """
-        queue: asyncio.Queue[OnboardTrialProgressUpdate] = asyncio.Queue()
+        queue: asyncio.Queue[Any] = asyncio.Queue()
         self._subscribers[workflow_id].append(queue)
         return queue
 
@@ -66,13 +72,13 @@ class WorkflowPubSub:
                 # Queue already removed
                 pass
 
-    async def publish(self, workflow_id: str, update: OnboardTrialProgressUpdate) -> None:
+    async def publish(self, workflow_id: str, update: Any) -> None:
         """
         Publish an update to all subscribers of a workflow.
 
         Args:
             workflow_id: The workflow that has an update
-            update: The progress update to publish
+            update: The progress update to publish (type depends on workflow)
         """
         if workflow_id in self._subscribers:
             # Send to all subscribers
