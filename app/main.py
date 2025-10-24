@@ -17,7 +17,7 @@ from app.usecases.workflows.onboard_trial_async.webhook import router as webhook
 from app.usecases.workflows.onboard_trial_async.restate_workflow import (
     onboard_trial_workflow,
 )
-from app.domain.trial_virtual_object import trial_virtual_object
+from app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object import trial_virtual_object
 from restate.endpoint import Endpoint
 
 

@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 
-from app.domain.trial_virtual_object import update_metadata
+from app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object import update_metadata
 
 
 @pytest.mark.asyncio
@@ -34,8 +34,8 @@ async def test_update_metadata_success():
     mock_response.changes = "name: 'Old Name' -> 'Updated Trial Name'; phase: 'Phase I' -> 'Phase II'"
 
     # Patch the handler and session
-    with patch("app.domain.trial_virtual_object.session_scope") as mock_session_scope, \
-         patch("app.domain.trial_virtual_object.update_trial_metadata_handler") as mock_handler:
+    with patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.session_scope") as mock_session_scope, \
+         patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.update_trial_metadata_handler") as mock_handler:
 
         # Configure mocks
         mock_handler.return_value = mock_response
@@ -79,8 +79,8 @@ async def test_update_metadata_name_only():
     mock_response.created_at = datetime(2025, 1, 1, 12, 0, 0)
     mock_response.changes = "name: 'Old Name' -> 'New Name Only'"
 
-    with patch("app.domain.trial_virtual_object.session_scope") as mock_session_scope, \
-         patch("app.domain.trial_virtual_object.update_trial_metadata_handler") as mock_handler:
+    with patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.session_scope") as mock_session_scope, \
+         patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.update_trial_metadata_handler") as mock_handler:
 
         mock_handler.return_value = mock_response
         mock_session = MagicMock()
@@ -113,8 +113,8 @@ async def test_update_metadata_phase_only():
     mock_response.created_at = datetime(2025, 1, 1, 12, 0, 0)
     mock_response.changes = "phase: 'Phase II' -> 'Phase III'"
 
-    with patch("app.domain.trial_virtual_object.session_scope") as mock_session_scope, \
-         patch("app.domain.trial_virtual_object.update_trial_metadata_handler") as mock_handler:
+    with patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.session_scope") as mock_session_scope, \
+         patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.update_trial_metadata_handler") as mock_handler:
 
         mock_handler.return_value = mock_response
         mock_session = MagicMock()
@@ -139,8 +139,8 @@ async def test_update_metadata_propagates_validation_error():
 
     update_data = {"phase": "Invalid Phase"}
 
-    with patch("app.domain.trial_virtual_object.session_scope") as mock_session_scope, \
-         patch("app.domain.trial_virtual_object.update_trial_metadata_handler") as mock_handler:
+    with patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.session_scope") as mock_session_scope, \
+         patch("app.usecases.commands.trial_management.update_trial_metadata_via_vo.virtual_object.update_trial_metadata_handler") as mock_handler:
 
         mock_session = MagicMock()
         mock_session_scope.return_value.__enter__.return_value = mock_session
