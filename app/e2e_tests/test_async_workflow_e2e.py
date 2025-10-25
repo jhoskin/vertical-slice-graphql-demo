@@ -2,7 +2,7 @@
 True E2E tests for asynchronous Restate workflow.
 
 These tests require Restate to be running and test the full system:
-- GraphQL API → Restate runtime → Workflow execution → Webhook callbacks → Subscriptions
+- GraphQL API → Restate runtime → Workflow execution → GraphQL pub/sub progress updates → Subscriptions
 
 Run with: pytest -m restate_e2e
 Skip with: pytest -m "not restate_e2e"
@@ -187,17 +187,17 @@ def test_async_workflow_full_execution(
     assert len(trial_detail["sites"]) == 2, "Should have 2 sites registered"
 
 
-def test_async_workflow_with_webhook_callbacks(
+def test_async_workflow_with_progress_updates(
     check_restate_running, check_api_running, check_restate_service_registered
 ):
     """
-    E2E test verifying webhook callbacks work via Restate execution.
+    E2E test verifying GraphQL pub/sub progress updates work via Restate execution.
 
     This test:
     1. Starts workflow via GraphQL
     2. Waits for completion
-    3. Verifies trial was created (proves webhooks and workflow executed)
-    4. Checks for webhook log entries (proves webhook system active)
+    3. Verifies trial was created (proves workflow executed)
+    4. Verifies database state (proves progress updates were published)
     """
     # GraphQL mutation
     mutation = """

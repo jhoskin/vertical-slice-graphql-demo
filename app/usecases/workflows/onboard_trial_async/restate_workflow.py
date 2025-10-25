@@ -37,7 +37,7 @@ async def run(ctx: WorkflowContext, input_data: dict) -> dict:
 
     This workflow orchestrates the same steps as the sync saga but runs
     asynchronously with durable execution. Progress updates are sent via
-    HTTP POST to the webhook endpoint.
+    GraphQL mutation to the pub/sub system.
 
     Args:
         ctx: Restate workflow context (provides durability)

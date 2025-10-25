@@ -36,7 +36,7 @@ async def start_onboard_trial_async(
 
     This mutation returns immediately with a workflow ID. The actual
     onboarding happens asynchronously via Restate. Subscribe to
-    'workflowProgress' to receive updates.
+    'onboard_trial_async_progress' to receive updates.
 
     Args:
         input: Onboarding input with trial, protocol, and sites (validated via Pydantic)

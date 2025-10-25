@@ -77,7 +77,7 @@ Two workflow patterns demonstrating different orchestration approaches:
 - In: `{ name, phase, initial_protocol_version, sites: [{name, country}] }`
 - Pattern: Durable async workflow with GraphQL subscriptions for progress
 - Behavior: Returns immediately with workflow ID. Execution happens durably via Restate.
-- Progress: Subscribe via `workflowProgress(workflow_id)` for real-time updates
+- Progress: Subscribe via `onboard_trial_async_progress(workflow_id: String!)` for real-time updates
 - Steps: create trial → add protocol → register sites (with synthetic delays for observation)
 - Durable execution: Workflow state journaled by Restate, survives restarts
 - Returns immediately: `{ workflow_id, message }`
@@ -127,9 +127,10 @@ app/
 │   │   │   │   ├── test_handler.py
 │   │   │   │   └── test_resolver.py
 │   │   │   └── update_trial_metadata_via_vo/   # Virtual Object variant
-│   │   │       ├── handler.py
+│   │   │       ├── virtual_object.py
 │   │   │       ├── types.py
 │   │   │       ├── resolver.py
+│   │   │       ├── test_virtual_object.py
 │   │   │       └── test_resolver.py
 │   │   └── register_site_to_trial/
 │   │       ├── handler.py
@@ -151,11 +152,8 @@ app/
 │       └── onboard_trial_async/     # Async Restate workflow
 │           ├── restate_workflow.py  # Restate workflow definition
 │           ├── types.py
-│           ├── resolver.py          # Mutation + subscription
-│           ├── webhook.py           # Webhook for progress callbacks
-│           ├── test_resolver.py
-│           ├── test_pubsub.py
-│           └── test_webhook.py
+│           ├── resolver.py          # Mutation + subscription + publish
+│           └── test_resolver.py
 ├── e2e_tests/             # End-to-end integration tests (NOT unit tests)
 │   ├── conftest.py
 │   ├── test_trial_lifecycle.py
@@ -363,12 +361,16 @@ mutation StartAsync($input: OnboardTrialAsyncInput!) {
 }
 
 # Subscribe to progress updates
-subscription WorkflowProgress($workflowId: String!) {
-  workflowProgress(workflowId: $workflowId) {
+subscription OnboardTrialAsyncProgress($workflowId: String!) {
+  onboard_trial_async_progress(workflowId: $workflowId) {
     workflowId
     status
     message
-    trialId
+    trial {
+      id
+      name
+      phase
+    }
   }
 }
 ```
@@ -415,7 +417,7 @@ Variables:
 ### Integration Tests
 - **Location**: `app/e2e_tests/test_async_workflow_integration.py`
 - **Scope**: Test component interactions with mocked external dependencies
-- **Examples**: Webhook → pub/sub → subscription flow (with mocked Restate)
+- **Examples**: Restate workflow → GraphQL mutation → pub/sub → subscription flow (with mocked Restate)
 
 ### End-to-End Tests
 - **Location**: `app/e2e_tests/`
@@ -449,7 +451,7 @@ pytest app/e2e_tests/test_sync_saga_workflow.py
 **Note on Restate E2E Tests:**
 - Require Restate runtime running via `docker-compose up`
 - Test actual workflow execution through Restate
-- Verify webhook callbacks and database state
+- Verify GraphQL pub/sub progress updates and database state
 - Automatically skipped if Restate is not running
 
 ### Restate Auto-Registration
